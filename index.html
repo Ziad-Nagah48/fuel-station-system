@@ -3690,81 +3690,6 @@
             id="treasury-capital-details"
           ></div>
 
-          <div
-            style="
-              display: grid;
-              grid-template-columns: 1fr 1fr;
-              gap: 16px;
-              margin-bottom: 16px;
-            "
-          >
-            <div class="card">
-              <div class="card-header">
-                <span>💳</span>تسجيل إيداع بنكي / إيراد خزنة
-              </div>
-              <div class="card-body">
-                <div class="form-group">
-                  <label class="form-label">نوع الحركة</label>
-                  <select
-                    class="form-input form-select"
-                    id="deposit-type-select"
-                  >
-                    <option value="deposit">إيداع بنكي</option>
-                    <option value="cash-in">إيراد نقدي للخزنة</option>
-                    <option value="withdrawal">سحب من الخزنة</option>
-                  </select>
-                </div>
-                <div class="form-group">
-                  <label class="form-label">المبلغ (جنيه)</label>
-                  <input
-                    type="number"
-                    class="form-input"
-                    id="deposit-amount"
-                    placeholder="0.00"
-                  />
-                </div>
-                <div class="form-group">
-                  <label class="form-label">البنك / الجهة</label>
-                  <input
-                    type="text"
-                    class="form-input"
-                    id="deposit-bank"
-                    placeholder="اسم البنك أو الجهة"
-                  />
-                </div>
-                <div class="form-group">
-                  <label class="form-label">رقم الإيصال / المرجع</label>
-                  <input
-                    type="text"
-                    class="form-input"
-                    id="deposit-ref"
-                    placeholder="رقم المرجع"
-                  />
-                </div>
-                <div class="form-group">
-                  <label class="form-label">ملاحظة</label>
-                  <input
-                    type="text"
-                    class="form-input"
-                    id="deposit-note"
-                    placeholder="ملاحظة اختيارية"
-                  />
-                </div>
-                <button
-                  class="btn btn-primary"
-                  style="width: 100%; justify-content: center"
-                  onclick="saveDeposit()"
-                >
-                  💾 تسجيل
-                </button>
-              </div>
-            </div>
-            <div class="card">
-              <div class="card-header"><span>📱</span>التحويلات المعلقة</div>
-              <div class="card-body"><div id="pending-transfers"></div></div>
-            </div>
-          </div>
-
           <!-- تقرير الإيداعات -->
           <div class="card" style="margin-bottom: 16px">
             <div class="card-header">
@@ -4373,6 +4298,23 @@
             <div
               class="card"
               style="cursor: pointer"
+              onclick="navigate('allowances-report')"
+            >
+              <div class="card-body" style="text-align: center; padding: 20px">
+                <div style="font-size: 28px; margin-bottom: 8px">⚖️</div>
+                <div style="font-weight: 600; font-size: 13px">
+                  تقرير العيارات
+                </div>
+                <div
+                  style="font-size: 11px; color: var(--text3); margin-top: 4px"
+                >
+                  تجميع العيارات الشهرية
+                </div>
+              </div>
+            </div>
+            <div
+              class="card"
+              style="cursor: pointer"
               onclick="printCompanyPoolReport()"
             >
               <div class="card-body" style="text-align: center; padding: 20px">
@@ -4407,13 +4349,7 @@
             <div
               class="card"
               style="cursor: pointer"
-              onclick="
-                navigate('treasury');
-                setTimeout(() => {
-                  const el = document.getElementById('monthly-deposits-list');
-                  if (el) el.scrollIntoView({ behavior: 'smooth' });
-                }, 200);
-              "
+              onclick="navigate('bank-deposits')"
             >
               <div class="card-body" style="text-align: center; padding: 20px">
                 <div style="font-size: 28px; margin-bottom: 8px">🏦</div>
@@ -4787,6 +4723,97 @@
                 ✅ إضافة واختيار
               </button>
             </div>
+          </div>
+        </div>
+
+        <!-- ALLOWANCES REPORT PAGE -->
+        <div class="page" id="page-allowances-report">
+          <div
+            style="
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              margin-bottom: 16px;
+            "
+          >
+            <div>
+              <div style="font-size: 15px; font-weight: 600">
+                ⚖️ تقرير تجميع العيارات
+              </div>
+              <div
+                style="font-size: 12px; color: var(--text3); margin-top: 2px"
+              >
+                إجمالي العيارات المسجلة في كل وردية خلال الفترة المحددة
+              </div>
+            </div>
+            <div style="display: flex; gap: 8px; align-items: center">
+              <select
+                class="form-input form-select"
+                id="allowance-filter-period"
+                onchange="renderAllowancesReport()"
+                style="font-size: 12px; width: 150px"
+              >
+                <option value="month">هذا الشهر</option>
+                <option value="week">هذا الأسبوع</option>
+                <option value="year">هذه السنة</option>
+                <option value="all">الكل</option>
+              </select>
+              <input
+                type="month"
+                class="form-input"
+                id="allowance-filter-month"
+                oninput="renderAllowancesReport()"
+                style="font-size: 12px; width: 160px"
+                placeholder="شهر محدد"
+              />
+              <button
+                class="btn btn-secondary btn-sm"
+                onclick="printAllowancesReport()"
+              >
+                🖨 طباعة
+              </button>
+            </div>
+          </div>
+          <!-- Summary Stats -->
+          <div
+            style="
+              display: grid;
+              grid-template-columns: repeat(4, 1fr);
+              gap: 12px;
+              margin-bottom: 16px;
+            "
+            id="allowances-stats"
+          ></div>
+          <!-- Table -->
+          <div class="card">
+            <div class="card-header">
+              <span>⚖️</span>تفاصيل العيارات بالوردية
+            </div>
+            <div class="card-body" style="padding: 0">
+              <table class="readings-table">
+                <thead>
+                  <tr>
+                    <th>الوردية</th>
+                    <th>التاريخ</th>
+                    <th>المشرف</th>
+                    <th id="allowance-thead-fuels">العيار إجمالي (ل)</th>
+                    <th>القيمة المالية (ج)</th>
+                  </tr>
+                </thead>
+                <tbody id="allowances-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+          <!-- Monthly breakdown -->
+          <div
+            class="card"
+            style="margin-top: 14px"
+            id="allowances-fuel-breakdown-card"
+          >
+            <div class="card-header">
+              <span>⛽</span>تفصيل العيارات حسب نوع الوقود
+            </div>
+            <div class="card-body" id="allowances-fuel-breakdown"></div>
           </div>
         </div>
 
@@ -7218,6 +7245,10 @@
           "تقرير الأرباح التفصيلي",
           "ربح كل وقود ومنتج على حدة مع فلتر الفترة",
         ],
+        "allowances-report": [
+          "تقرير العيارات الشهري",
+          "تجميع كل العيارات المسجلة خلال الفترة",
+        ],
       };
 
       let currentPage = "dashboard";
@@ -7314,6 +7345,9 @@
             break;
           case "profit-detail":
             renderProfitDetail();
+            break;
+          case "allowances-report":
+            renderAllowancesReport();
             break;
         }
       }
@@ -12359,31 +12393,35 @@
                 : s.cashDiff > 0
                   ? "+" + fmt(s.cashDiff) + " ج"
                   : fmt(Math.abs(s.cashDiff)) + " ج عجز";
-            return `<div onclick="openShiftDetail('${s.id}')" style="display:grid;grid-template-columns:auto 1fr repeat(5,auto);align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
-            <div style="background:var(--accent-dim);color:var(--accent);border-radius:6px;padding:4px 10px;font-family:var(--mono);font-size:12px;font-weight:700">#${s.number}</div>
-            <div>
+            return `<div style="display:grid;grid-template-columns:auto 1fr repeat(5,auto) auto;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border);transition:background .15s" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+            <div style="background:var(--accent-dim);color:var(--accent);border-radius:6px;padding:4px 10px;font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer" onclick="openShiftDetail('${s.id}')">#${s.number}</div>
+            <div style="cursor:pointer" onclick="openShiftDetail('${s.id}')">
               <div style="font-weight:600;font-size:13px">${s.name}</div>
               <div style="font-size:11px;color:var(--text3)">${s.supervisor || "—"} • ${fmtDate(s.startTime)} → ${fmtDate(s.endTime)} • ${dur}</div>
             </div>
-            <div style="text-align:center;min-width:80px">
+            <div style="text-align:center;min-width:80px;cursor:pointer" onclick="openShiftDetail('${s.id}')">
               <div style="font-size:10px;color:var(--text3)">الكاش</div>
               <div style="font-family:var(--mono);font-weight:700;color:var(--green)">${fmt(s.cash)} ج</div>
             </div>
-            <div style="text-align:center;min-width:70px">
+            <div style="text-align:center;min-width:70px;cursor:pointer" onclick="openShiftDetail('${s.id}')">
               <div style="font-size:10px;color:var(--text3)">فيزا</div>
               <div style="font-family:var(--mono);color:var(--blue)">${fmt(s.visa || 0)} ج</div>
             </div>
-            <div style="text-align:center;min-width:70px">
+            <div style="text-align:center;min-width:70px;cursor:pointer" onclick="openShiftDetail('${s.id}')">
               <div style="font-size:10px;color:var(--text3)">شركات</div>
               <div style="font-family:var(--mono);color:var(--accent)">${fmt(s.companies || 0)} ج</div>
             </div>
-            <div style="text-align:center;min-width:90px">
+            <div style="text-align:center;min-width:90px;cursor:pointer" onclick="openShiftDetail('${s.id}')">
               <div style="font-size:10px;color:var(--text3)">الإجمالي</div>
               <div style="font-family:var(--mono);font-weight:700;color:var(--accent)">${fmt(s.totalRevenue || 0)} ج</div>
             </div>
-            <div style="text-align:center;min-width:80px">
+            <div style="text-align:center;min-width:80px;cursor:pointer" onclick="openShiftDetail('${s.id}')">
               <div style="font-size:10px;color:var(--text3)">الفرق</div>
               <div style="font-family:var(--mono);font-size:12px;color:${diffColor}">${diffText}</div>
+            </div>
+            <div style="display:flex;gap:4px;flex-shrink:0" onclick="event.stopPropagation()">
+              <button class="btn btn-secondary btn-sm" onclick="printShiftArchive('${s.id}')" title="طباعة الوردية" style="font-size:11px">🖨</button>
+              <button class="btn btn-danger btn-sm" onclick="deleteClosedShift('${s.id}')" title="حذف الوردية" style="font-size:11px">🗑</button>
             </div>
           </div>`;
           })
@@ -13419,109 +13457,261 @@
       }
 
       function generateShiftReport() {
-        printShiftReport();
+        // بناء قائمة بكل الورديات (السابقة + الحالية)
+        const allShifts = [
+          {
+            id: "__current__",
+            name: DB.currentShift.name || "وردية " + DB.currentShift.number,
+            supervisor: DB.currentShift.supervisor || "—",
+            startTime: DB.currentShift.startTime,
+            endTime: null,
+            isCurrent: true,
+          },
+          ...[...(DB.shifts || [])].reverse(),
+        ];
+        const rows = allShifts
+          .map((sh) => {
+            const dateStr = sh.startTime ? fmtDate(sh.startTime) : "—";
+            const endStr = sh.endTime
+              ? fmtDate(sh.endTime)
+              : sh.isCurrent
+                ? '<span style="color:#22c55e;font-weight:700">▶ جارية</span>'
+                : "—";
+            const badge = sh.isCurrent
+              ? '<span style="background:#22c55e22;color:#22c55e;font-size:10px;padding:2px 8px;border-radius:10px;font-weight:700">حالية</span>'
+              : '<span style="background:#3b82f622;color:#3b82f6;font-size:10px;padding:2px 8px;border-radius:10px">مقفولة</span>';
+            const clickFn = sh.isCurrent
+              ? "closeModal('shift-picker-modal'); printShiftReport();"
+              : "closeModal('shift-picker-modal'); printShiftArchive('" +
+                sh.id +
+                "');";
+            return `<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid var(--border);cursor:pointer;transition:background 0.15s"
+            onmouseover="this.style.background='var(--surface3)'" onmouseout="this.style.background=''"
+            onclick="${clickFn}">
+            <div style="flex:1">
+              <div style="font-weight:700;font-size:13px">${sh.name} ${badge}</div>
+              <div style="font-size:11px;color:var(--text3);margin-top:3px">المشرف: ${sh.supervisor || "—"} | من: ${dateStr}</div>
+            </div>
+            <div style="font-size:11px;color:var(--text3);text-align:left">${endStr}</div>
+            <div style="color:var(--accent);font-size:18px">🖨</div>
+          </div>`;
+          })
+          .join("");
+
+        let modal = document.getElementById("shift-picker-modal");
+        if (!modal) {
+          modal = document.createElement("div");
+          modal.className = "modal-overlay";
+          modal.id = "shift-picker-modal";
+          modal.innerHTML = `
+            <div class="modal" style="width:520px;max-width:95vw">
+              <div class="modal-header">
+                <div class="modal-title">🖨 اختر الوردية للطباعة</div>
+                <button class="modal-close" onclick="closeModal('shift-picker-modal')">✕</button>
+              </div>
+              <div id="shift-picker-list" style="max-height:60vh;overflow-y:auto"></div>
+              <div style="padding:12px;border-top:1px solid var(--border);text-align:left">
+                <button class="btn btn-secondary btn-sm" onclick="closeModal('shift-picker-modal')">إلغاء</button>
+              </div>
+            </div>`;
+          document.body.appendChild(modal);
+        }
+        document.getElementById("shift-picker-list").innerHTML =
+          rows ||
+          '<div style="padding:30px;text-align:center;color:var(--text3)">لا توجد ورديات</div>';
+        openModal("shift-picker-modal");
       }
 
       function generateEvapReport() {
-        // 🛢️ تقرير البخر — حساب نظري للبخر بناءً على نسبة كل نوع وقود
-        // ملاحظة مهمة: ده تقرير معلوماتي فقط ولا يؤثر على الخزنة أو المخزون
-        const monthStart = new Date();
-        monthStart.setDate(1);
-        monthStart.setHours(0, 0, 0, 0);
-        const monthLabel = monthStart.toLocaleDateString("ar-EG", {
-          month: "long",
-          year: "numeric",
-        });
+        // 🛢️ تقرير البخر — مع فلتر زمني ويشمل الوردية الحالية
 
-        // اجمع كميات الوقود المباعة في الشهر الحالي من الورديات المقفولة
-        const litersByFuel = {};
-        const shifts = (DB.shifts || []).filter(
-          (sh) => new Date(sh.endTime || sh.startTime || 0) >= monthStart,
-        );
-        shifts.forEach((sh) => {
-          const lib = sh.fuelLitersByFuel || {};
-          Object.keys(lib).forEach((fid) => {
-            litersByFuel[fid] =
-              (litersByFuel[fid] || 0) + (parseFloat(lib[fid]) || 0);
+        // ── دالة مساعدة لجمع الليترات من الورديات + المعاملات الحالية ──
+        function collectLiters(fromDate) {
+          const litersByFuel = {};
+          const closedTxIds = new Set();
+
+          // 1) الورديات المقفولة — من قراءات العداد (fuelLitersByFuel)
+          (DB.shifts || []).forEach((sh) => {
+            (sh.transactions || []).forEach((tid) => closedTxIds.add(tid));
+            const shiftDate = new Date(sh.endTime || sh.startTime || 0);
+            if (fromDate && shiftDate < fromDate) return;
+            Object.entries(sh.fuelLitersByFuel || {}).forEach(([fid, L]) => {
+              litersByFuel[fid] =
+                (litersByFuel[fid] || 0) + (parseFloat(L) || 0);
+            });
           });
-        });
 
-        let rows = "";
-        let totalLitersAll = 0;
-        let totalEvapLiters = 0;
-        let totalEvapValue = 0;
+          // 2) الوردية الحالية المفتوحة — من DB.transactions اللي مش في ورديات مقفولة
+          (DB.transactions || []).forEach((tx) => {
+            if (closedTxIds.has(tx.id)) return;
+            if (tx.type === "shift-close") return;
+            if (fromDate && new Date(tx.date) < fromDate) return;
+            (tx.items || []).forEach((it) => {
+              if (it.type !== "fuel" || !it.fuelId) return;
+              litersByFuel[it.fuelId] =
+                (litersByFuel[it.fuelId] || 0) + (parseFloat(it.qty) || 0);
+            });
+          });
 
-        DB.fuels.forEach((f) => {
-          const liters = parseFloat(litersByFuel[f.id]) || 0;
-          const evapPct = parseFloat(f.evapPct) || 0;
-          const evapLiters = liters * (evapPct / 100);
-          const evapValue = evapLiters * (parseFloat(f.price) || 0);
-          totalLitersAll += liters;
-          totalEvapLiters += evapLiters;
-          totalEvapValue += evapValue;
+          return litersByFuel;
+        }
 
-          rows += `<tr>
-            <td style="border:1px solid #ddd;padding:8px;color:${f.color};font-weight:700">${f.name}</td>
-            <td style="border:1px solid #ddd;padding:8px;text-align:left;font-family:monospace">${liters.toLocaleString("en-US", { maximumFractionDigits: 2 })} ل</td>
-            <td style="border:1px solid #ddd;padding:8px;text-align:left;font-family:monospace">${evapPct.toFixed(2)}%</td>
-            <td style="border:1px solid #ddd;padding:8px;text-align:left;font-family:monospace;color:#ef4444;font-weight:700">${evapLiters.toLocaleString("en-US", { maximumFractionDigits: 2 })} ل</td>
-            <td style="border:1px solid #ddd;padding:8px;text-align:left;font-family:monospace">${(parseFloat(f.price) || 0).toFixed(2)} ج</td>
-            <td style="border:1px solid #ddd;padding:8px;text-align:left;font-family:monospace;color:#ef4444;font-weight:700">${evapValue.toLocaleString("en-US", { maximumFractionDigits: 2 })} ج</td>
-          </tr>`;
-        });
+        // ── حساب تواريخ الفلاتر ──
+        const now = new Date();
+        const filters = {
+          day: (() => {
+            const d = new Date(now);
+            d.setHours(0, 0, 0, 0);
+            return d;
+          })(),
+          week: (() => {
+            const d = new Date(now);
+            d.setDate(d.getDate() - 6);
+            d.setHours(0, 0, 0, 0);
+            return d;
+          })(),
+          month: (() => {
+            const d = new Date(now.getFullYear(), now.getMonth(), 1);
+            return d;
+          })(),
+          year: (() => {
+            const d = new Date(now.getFullYear(), 0, 1);
+            return d;
+          })(),
+          all: null,
+        };
+        const filterLabels = {
+          day: "اليوم",
+          week: "الأسبوع",
+          month: "الشهر الحالي",
+          year: "السنة الحالية",
+          all: "الكل",
+        };
 
-        const html = `
-        <div style="font-family:Arial,sans-serif;direction:rtl;padding:20px;background:white;color:#000">
-          <div style="text-align:center;border-bottom:2px solid #f59e0b;padding-bottom:14px;margin-bottom:18px">
-            <div style="font-size:22px;font-weight:700;color:#f59e0b">🛢️ تقرير البخر الطبيعي</div>
-            <div style="font-size:14px;color:#555;margin-top:4px">${(DB.settings && DB.settings.stationName) || "محطة وقود"}</div>
-            <div style="font-size:13px;color:#777;margin-top:4px">شهر ${monthLabel}</div>
-          </div>
+        // ── بناء التقرير لفلتر معين ──
+        function buildReport(period) {
+          const fromDate = filters[period];
+          const periodLabel = filterLabels[period];
+          const litersByFuel = collectLiters(fromDate);
 
-          <div style="background:#fff9e6;border:1px solid #f59e0b;border-radius:8px;padding:12px;margin-bottom:18px;font-size:12px;color:#666">
-            <strong style="color:#f59e0b">⚠️ ملاحظة:</strong> هذا تقرير معلوماتي يحسب البخر النظري بناءً على نسبة معتمدة لكل نوع وقود.
-            هذه القيم <strong>لا تُخصم من الخزنة ولا تُسجل كعجز</strong> — هي للمعرفة والمتابعة فقط.
-          </div>
+          let tableRows = "";
+          let totalLitersAll = 0,
+            totalEvapLiters = 0,
+            totalEvapValue = 0;
 
-          <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:18px">
-            <thead>
-              <tr style="background:#f5f5f5">
-                <th style="border:1px solid #ddd;padding:10px">نوع الوقود</th>
-                <th style="border:1px solid #ddd;padding:10px">الكمية المباعة (ل)</th>
-                <th style="border:1px solid #ddd;padding:10px">نسبة البخر</th>
-                <th style="border:1px solid #ddd;padding:10px">البخر المتوقع (ل)</th>
-                <th style="border:1px solid #ddd;padding:10px">سعر اللتر</th>
-                <th style="border:1px solid #ddd;padding:10px">قيمة البخر (ج)</th>
-              </tr>
-            </thead>
-            <tbody>${rows}</tbody>
-            <tfoot>
-              <tr style="background:#fef3c7;font-weight:700">
-                <td style="border:1px solid #ddd;padding:10px">الإجمالي</td>
-                <td style="border:1px solid #ddd;padding:10px;text-align:left;font-family:monospace">${totalLitersAll.toLocaleString("en-US", { maximumFractionDigits: 2 })} ل</td>
-                <td style="border:1px solid #ddd;padding:10px">—</td>
-                <td style="border:1px solid #ddd;padding:10px;text-align:left;font-family:monospace;color:#ef4444">${totalEvapLiters.toLocaleString("en-US", { maximumFractionDigits: 2 })} ل</td>
-                <td style="border:1px solid #ddd;padding:10px">—</td>
-                <td style="border:1px solid #ddd;padding:10px;text-align:left;font-family:monospace;color:#ef4444;font-size:14px">${totalEvapValue.toLocaleString("en-US", { maximumFractionDigits: 2 })} ج</td>
-              </tr>
-            </tfoot>
-          </table>
+          DB.fuels.forEach((f) => {
+            const liters = parseFloat(litersByFuel[f.id]) || 0;
+            const evapPct = parseFloat(f.evapPct) || 0;
+            const evapLiters = liters * (evapPct / 100);
+            const evapValue = evapLiters * (parseFloat(f.price) || 0);
+            totalLitersAll += liters;
+            totalEvapLiters += evapLiters;
+            totalEvapValue += evapValue;
+            tableRows += `<tr>
+              <td style="border:1px solid #ddd;padding:8px;color:${f.color};font-weight:700">${f.name}</td>
+              <td style="border:1px solid #ddd;padding:8px;text-align:left;font-family:monospace">${liters.toLocaleString("en-US", { maximumFractionDigits: 2 })} ل</td>
+              <td style="border:1px solid #ddd;padding:8px;text-align:left;font-family:monospace">${evapPct.toFixed(2)}%</td>
+              <td style="border:1px solid #ddd;padding:8px;text-align:left;font-family:monospace;color:#ef4444;font-weight:700">${evapLiters.toLocaleString("en-US", { maximumFractionDigits: 2 })} ل</td>
+              <td style="border:1px solid #ddd;padding:8px;text-align:left;font-family:monospace">${(parseFloat(f.price) || 0).toFixed(2)} ج</td>
+              <td style="border:1px solid #ddd;padding:8px;text-align:left;font-family:monospace;color:#ef4444;font-weight:700">${evapValue.toLocaleString("en-US", { maximumFractionDigits: 2 })} ج</td>
+            </tr>`;
+          });
 
-          <div style="background:#f0fff4;border:1px solid #22c55e;border-radius:8px;padding:14px;margin-bottom:14px">
-            <div style="font-size:13px;font-weight:700;color:#16a34a;margin-bottom:6px">📊 الخلاصة</div>
-            <div style="font-size:13px;color:#555">
-              إجمالي الوقود المباع هذا الشهر: <strong>${totalLitersAll.toLocaleString("en-US", { maximumFractionDigits: 2 })} لتر</strong><br>
-              البخر النظري المتوقع: <strong style="color:#ef4444">${totalEvapLiters.toLocaleString("en-US", { maximumFractionDigits: 2 })} لتر</strong> بقيمة تقديرية <strong style="color:#ef4444">${totalEvapValue.toLocaleString("en-US", { maximumFractionDigits: 2 })} ج</strong><br>
-              نسبة البخر الإجمالية: <strong>${totalLitersAll > 0 ? ((totalEvapLiters / totalLitersAll) * 100).toFixed(3) : 0}%</strong>
+          const html = `
+          <div style="font-family:Arial,sans-serif;direction:rtl;padding:20px;background:white;color:#000">
+            <div style="text-align:center;border-bottom:2px solid #f59e0b;padding-bottom:14px;margin-bottom:18px">
+              <div style="font-size:22px;font-weight:700;color:#f59e0b">🛢️ تقرير البخر الطبيعي</div>
+              <div style="font-size:14px;color:#555;margin-top:4px">${(DB.settings && DB.settings.stationName) || "محطة وقود"}</div>
+              <div style="font-size:13px;color:#777;margin-top:4px">الفترة: ${periodLabel} — حتى ${now.toLocaleDateString("ar-EG")}</div>
             </div>
-          </div>
+            <div style="background:#fff9e6;border:1px solid #f59e0b;border-radius:8px;padding:12px;margin-bottom:18px;font-size:12px;color:#666">
+              <strong style="color:#f59e0b">⚠️ ملاحظة:</strong> هذا تقرير معلوماتي — البخر النظري بناءً على النسبة المعتمدة لكل وقود.
+              هذه القيم <strong>لا تُخصم من الخزنة</strong> — للمعرفة والمتابعة فقط.
+            </div>
+            <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:18px">
+              <thead>
+                <tr style="background:#f5f5f5">
+                  <th style="border:1px solid #ddd;padding:10px">نوع الوقود</th>
+                  <th style="border:1px solid #ddd;padding:10px">الكمية المباعة (ل)</th>
+                  <th style="border:1px solid #ddd;padding:10px">نسبة البخر</th>
+                  <th style="border:1px solid #ddd;padding:10px">البخر المتوقع (ل)</th>
+                  <th style="border:1px solid #ddd;padding:10px">سعر اللتر</th>
+                  <th style="border:1px solid #ddd;padding:10px">قيمة البخر (ج)</th>
+                </tr>
+              </thead>
+              <tbody>${tableRows || '<tr><td colspan="6" style="text-align:center;padding:20px;color:#aaa">لا توجد بيانات</td></tr>'}</tbody>
+              <tfoot>
+                <tr style="background:#fef3c7;font-weight:700">
+                  <td style="border:1px solid #ddd;padding:10px">الإجمالي</td>
+                  <td style="border:1px solid #ddd;padding:10px;text-align:left;font-family:monospace">${totalLitersAll.toLocaleString("en-US", { maximumFractionDigits: 2 })} ل</td>
+                  <td style="border:1px solid #ddd;padding:10px">—</td>
+                  <td style="border:1px solid #ddd;padding:10px;text-align:left;font-family:monospace;color:#ef4444">${totalEvapLiters.toLocaleString("en-US", { maximumFractionDigits: 2 })} ل</td>
+                  <td style="border:1px solid #ddd;padding:10px">—</td>
+                  <td style="border:1px solid #ddd;padding:10px;text-align:left;font-family:monospace;color:#ef4444;font-size:14px">${totalEvapValue.toLocaleString("en-US", { maximumFractionDigits: 2 })} ج</td>
+                </tr>
+              </tfoot>
+            </table>
+            <div style="background:#f0fff4;border:1px solid #22c55e;border-radius:8px;padding:14px;margin-bottom:14px">
+              <div style="font-size:13px;font-weight:700;color:#16a34a;margin-bottom:6px">📊 الخلاصة</div>
+              <div style="font-size:13px;color:#555">
+                إجمالي الوقود المباع (${periodLabel}): <strong>${totalLitersAll.toLocaleString("en-US", { maximumFractionDigits: 2 })} لتر</strong><br>
+                البخر النظري المتوقع: <strong style="color:#ef4444">${totalEvapLiters.toLocaleString("en-US", { maximumFractionDigits: 2 })} لتر</strong>
+                بقيمة تقديرية <strong style="color:#ef4444">${totalEvapValue.toLocaleString("en-US", { maximumFractionDigits: 2 })} ج</strong><br>
+                نسبة البخر الإجمالية: <strong>${totalLitersAll > 0 ? ((totalEvapLiters / totalLitersAll) * 100).toFixed(3) : 0}%</strong>
+              </div>
+            </div>
+            <div style="text-align:center;font-size:11px;color:#999;margin-top:20px;border-top:1px solid #ddd;padding-top:10px">
+              تم توليد التقرير في ${now.toLocaleString("ar-EG")} • تقرير معلوماتي فقط
+            </div>
+          </div>`;
+          openPrint(html, "🛢️ تقرير البخر — " + periodLabel);
+        }
 
-          <div style="text-align:center;font-size:11px;color:#999;margin-top:20px;border-top:1px solid #ddd;padding-top:10px">
-            تم توليد التقرير في ${new Date().toLocaleString("ar-EG")} • تقرير معلوماتي فقط
-          </div>
-        </div>`;
-
-        openPrint(html, "🛢️ تقرير البخر — " + monthLabel);
+        // ── مودال اختيار الفترة الزمنية ──
+        let evapModal = document.getElementById("evap-period-modal");
+        if (!evapModal) {
+          evapModal = document.createElement("div");
+          evapModal.className = "modal-overlay";
+          evapModal.id = "evap-period-modal";
+          evapModal.innerHTML = `
+            <div class="modal" style="width:380px;max-width:95vw">
+              <div class="modal-header">
+                <div class="modal-title">🛢️ تقرير البخر — اختر الفترة</div>
+                <button class="modal-close" onclick="closeModal('evap-period-modal')">✕</button>
+              </div>
+              <div style="padding:20px;display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                <button class="btn btn-secondary" style="padding:18px;font-size:14px;flex-direction:column;gap:4px"
+                  onclick="closeModal('evap-period-modal');buildEvapReport('day')">
+                  <div style="font-size:22px">📅</div><div>اليوم</div>
+                </button>
+                <button class="btn btn-secondary" style="padding:18px;font-size:14px;flex-direction:column;gap:4px"
+                  onclick="closeModal('evap-period-modal');buildEvapReport('week')">
+                  <div style="font-size:22px">📆</div><div>الأسبوع</div>
+                </button>
+                <button class="btn btn-primary" style="padding:18px;font-size:14px;flex-direction:column;gap:4px"
+                  onclick="closeModal('evap-period-modal');buildEvapReport('month')">
+                  <div style="font-size:22px">🗓️</div><div>الشهر الحالي</div>
+                </button>
+                <button class="btn btn-secondary" style="padding:18px;font-size:14px;flex-direction:column;gap:4px"
+                  onclick="closeModal('evap-period-modal');buildEvapReport('year')">
+                  <div style="font-size:22px">📊</div><div>السنة الحالية</div>
+                </button>
+                <button class="btn btn-secondary" style="padding:18px;font-size:14px;flex-direction:column;gap:4px;grid-column:1/-1"
+                  onclick="closeModal('evap-period-modal');buildEvapReport('all')">
+                  <div style="font-size:22px">🗂️</div><div>الكل (منذ البداية)</div>
+                </button>
+              </div>
+              <div style="padding:0 20px 16px;text-align:left">
+                <button class="btn btn-secondary btn-sm" onclick="closeModal('evap-period-modal')">إلغاء</button>
+              </div>
+            </div>`;
+          document.body.appendChild(evapModal);
+          // نربط الدالة على window عشان تشتغل من onclick في الـ HTML
+          window.buildEvapReport = buildReport;
+        } else {
+          window.buildEvapReport = buildReport;
+        }
+        openModal("evap-period-modal");
       }
 
       function generateCompanyReport() {
@@ -14237,7 +14427,7 @@
             <td style="display:flex;gap:4px">
               <button class="btn btn-secondary btn-sm" onclick="printPurchaseInvoice('${p.id}')" title="طباعة الفاتورة">🖨</button>
               ${p.status !== "paid" && sup ? `<button class="btn btn-primary btn-sm" onclick="openSupplierPayModal('${sup.id}')" title="دفع">💰</button>` : ""}
-              <button class="btn btn-danger btn-sm" onclick="deletePurchase('${p.id}')">حذف</button>
+              <button class="btn btn-danger btn-sm" onclick="deletePurchaseInvoice('${p.id}')" title="حذف الفاتورة">🗑</button>
             </td>
           </tr>`;
         });
@@ -15163,7 +15353,7 @@
           </div>
           <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;text-align:center">
             <div style="font-size:11px;color:var(--text3);margin-bottom:8px">📱 توم كارد</div>
-            <div style="font-family:var(--mono);font-size:20px;font-weight:700;color:var(--purple)">${fmt(totalTomcard)}</div>
+            <div style="font-family:var(--mono);font-size:20px;font-weight:700;color:var(--purple)">${fmt(pendingTomcard)}</div>
             <div style="font-size:10px;color:var(--text3);margin-top:4px">
               <span style="color:var(--yellow)">⏳ معلق: ${fmt(pendingTomcard)}</span> ·
               <span style="color:var(--green)">✓ مؤكد: ${fmt(confirmedTomcard)}</span>
@@ -15171,7 +15361,7 @@
           </div>
           <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;text-align:center">
             <div style="font-size:11px;color:var(--text3);margin-bottom:8px">💳 فيزا POS</div>
-            <div style="font-family:var(--mono);font-size:20px;font-weight:700;color:var(--blue)">${fmt(totalVisa)}</div>
+            <div style="font-family:var(--mono);font-size:20px;font-weight:700;color:var(--blue)">${fmt(pendingVisa)}</div>
             <div style="font-size:10px;color:var(--text3);margin-top:4px">
               <span style="color:var(--yellow)">⏳ معلق: ${fmt(pendingVisa)}</span> ·
               <span style="color:var(--green)">✓ مؤكد: ${fmt(confirmedVisa)}</span>
@@ -15197,10 +15387,15 @@
                       : withConfirm && tx.confirmed
                         ? `<button class="btn btn-secondary btn-sm" onclick="undoTransferArrival('${tx.id}')">↶ تراجع</button>`
                         : "";
+                  // المبلغ يظهر صفر بعد التأكيد (وصل للخزينة)، التاريخ والبيان يبقيان للطباعة
+                  const displayAmount =
+                    withConfirm && tx.confirmed
+                      ? `<span style="font-family:var(--mono);font-weight:600;color:var(--green)">0.00 ج</span>`
+                      : `<span style="font-family:var(--mono);font-weight:600;color:var(--accent)">${fmt(tx.total)} ج</span>`;
                   return `<tr>
                 <td style="font-size:11px;color:var(--text3)">${fmtDate(tx.date)}</td>
                 <td>${comp ? comp.name : tx.name}</td>
-                <td style="font-family:var(--mono);font-weight:600;color:var(--accent)">${fmt(tx.total)} ج</td>
+                <td>${displayAmount}</td>
                 ${withConfirm ? `<td>${statusBadge}</td><td>${actionBtn}</td>` : ""}
               </tr>`;
                 })
@@ -16000,7 +16195,8 @@
             <td>${payLabels[tx.payMethod] || tx.payMethod}</td>
             <td style="font-size:11px;color:var(--text3)">${tx.shiftName || "—"}</td>
             <td style="display:flex;gap:4px">
-              <button class="btn btn-secondary btn-sm" onclick="printInvoiceFromTx('${tx.id}')">🖨</button>
+              <button class="btn btn-secondary btn-sm" onclick="printInvoiceFromTx('${tx.id}')" title="طباعة">🖨</button>
+              <button class="btn btn-danger btn-sm" onclick="deleteInvoiceTx('${tx.id}')" title="حذف الفاتورة">🗑</button>
             </td>
           </tr>`;
         });
@@ -16066,6 +16262,42 @@
           const html = `<div class="invoice-a4"><div style="text-align:center;margin-bottom:16px;border-bottom:2px solid #333;padding-bottom:12px"><div style="font-size:20px;font-weight:700">${s.stationName}</div><div style="font-size:16px;color:#f59e0b;font-weight:700">سجل الفواتير الكامل</div><div style="font-size:12px;color:#777">تاريخ الطباعة: ${new Date().toLocaleString("ar-EG")}</div></div><table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr style="background:#f5f5f5"><th style="border:1px solid #ddd;padding:6px">#</th><th style="border:1px solid #ddd;padding:6px">التاريخ</th><th style="border:1px solid #ddd;padding:6px">العميل/الشركة</th><th style="border:1px solid #ddd;padding:6px">البيان</th><th style="border:1px solid #ddd;padding:6px">المبلغ</th><th style="border:1px solid #ddd;padding:6px">الدفع</th></tr></thead><tbody>${rows}</tbody><tfoot><tr style="background:#fff9e6;font-weight:700"><td colspan="4" style="border:1px solid #ddd;padding:8px">الإجمالي</td><td style="border:1px solid #ddd;padding:8px;color:#f59e0b">${fmt(total)} ج</td><td style="border:1px solid #ddd;padding:8px"></td></tr></tfoot></table></div>`;
           openPrint(html, "سجل الفواتير الكامل");
         }, 100);
+      }
+
+      function deleteInvoiceTx(txId) {
+        const tx = DB.transactions.find((t) => t.id === txId);
+        if (!tx) return;
+        const payNames = {
+          cash: "كاش",
+          credit: "آجل",
+          pos: "فيزا",
+          tomcard: "توم كارد",
+          pending: "معلق",
+        };
+        if (
+          !confirm(
+            `⚠️ حذف الفاتورة رقم ${txId}؟\nالمبلغ: ${fmt(tx.total)} ج | الدفع: ${payNames[tx.payMethod] || tx.payMethod}\n\nسيتم حذف الفاتورة نهائياً.\nهل أنت متأكد؟`,
+          )
+        )
+          return;
+        if (tx.payMethod === "credit" && tx.companyId) {
+          const comp = DB.companies.find((c) => c.id === tx.companyId);
+          if (comp) comp.balance = Math.max(0, comp.balance - tx.total);
+        }
+        if (tx.saleMode === "customer-credit" && tx.customerId) {
+          const cust = (DB.customers || []).find((c) => c.id === tx.customerId);
+          if (cust) cust.balance = Math.max(0, (cust.balance || 0) - tx.total);
+        }
+        (tx.items || []).forEach((it) => {
+          if (it.type === "inventory" && it.itemId) {
+            const item = (DB.inventory || []).find((i) => i.id === it.itemId);
+            if (item) item.qty += parseFloat(it.qty) || 0;
+          }
+        });
+        DB.transactions = DB.transactions.filter((t) => t.id !== txId);
+        saveDB();
+        renderInvoicesPage();
+        showToast("🗑 تم حذف الفاتورة", "info");
       }
 
       // Patch openModal to auto-populate purchase supplier dropdown
@@ -20570,6 +20802,528 @@ ${bodyHtml}
         window.v15PrintFullTreasury = v17PrintFullTreasury;
 
         console.log("✅ V17: استايل طباعة موحد + طباعة خزينة رئيسية احترافية");
+      })();
+    </script>
+
+    <!-- ============================================================
+         V28: العيارات الشهرية + حذف الورديات + حذف المشتريات + زرار طباعة الورديات
+    ============================================================ -->
+    <script>
+      (function () {
+        // ── 1. تقرير العيارات الشهرية ────────────────────────────────────
+        window.renderAllowancesReport = function () {
+          const periodFilter =
+            document.getElementById("allowance-filter-period")?.value ||
+            "month";
+          const monthFilter =
+            document.getElementById("allowance-filter-month")?.value || "";
+
+          const now = new Date();
+          let startDate = null;
+          if (monthFilter) {
+            const [yr, mo] = monthFilter.split("-").map(Number);
+            startDate = new Date(yr, mo - 1, 1);
+          } else {
+            if (periodFilter === "week") {
+              startDate = new Date(now);
+              startDate.setDate(now.getDate() - 6);
+              startDate.setHours(0, 0, 0, 0);
+            }
+            if (periodFilter === "month") {
+              startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+            }
+            if (periodFilter === "year") {
+              startDate = new Date(now.getFullYear(), 0, 1);
+            }
+          }
+
+          // نجمع العيارات من DB.shifts — كل وردية فيها pumpHandoverSnapshot
+          const fuelTotals = {}; // fuelId -> { name, color, liters, value }
+          DB.fuels.forEach((f) => {
+            fuelTotals[f.id] = {
+              name: f.name,
+              color: f.color,
+              liters: 0,
+              value: 0,
+            };
+          });
+
+          let totalAllowanceLiters = 0,
+            totalAllowanceValue = 0;
+          const rows = [];
+
+          (DB.shifts || []).forEach((sh) => {
+            const d = new Date(sh.endTime || sh.startTime || 0);
+            if (startDate && d < startDate) return;
+
+            // نجمع العيارات من snapshot
+            const snap = sh.pumpHandoverSnapshot || {};
+            let shiftAllowLiters = 0,
+              shiftAllowValue = 0;
+            const byFuel = {};
+
+            Object.values(snap).forEach((ph) => {
+              const allowances = ph.allowances || {};
+              Object.entries(allowances).forEach(([nozzleId, allow]) => {
+                const L = parseFloat(allow) || 0;
+                if (L <= 0) return;
+                // نحاول نعرف نوع الوقود من المسدس
+                let fuelId = null,
+                  fuelPrice = 0;
+                DB.pumps.forEach((pump) => {
+                  pump.nozzles.forEach((nz) => {
+                    if (nz.id === nozzleId) {
+                      const tank = DB.tanks.find((t) => t.id === nz.tankId);
+                      if (tank) {
+                        fuelId = tank.fuelId;
+                        const f = DB.fuels.find((x) => x.id === fuelId);
+                        fuelPrice = f ? parseFloat(f.price) || 0 : 0;
+                      }
+                    }
+                  });
+                });
+                shiftAllowLiters += L;
+                shiftAllowValue += L * fuelPrice;
+                if (fuelId) {
+                  if (!byFuel[fuelId]) byFuel[fuelId] = { liters: 0, value: 0 };
+                  byFuel[fuelId].liters += L;
+                  byFuel[fuelId].value += L * fuelPrice;
+                  if (fuelTotals[fuelId]) {
+                    fuelTotals[fuelId].liters += L;
+                    fuelTotals[fuelId].value += L * fuelPrice;
+                  }
+                }
+              });
+            });
+
+            if (shiftAllowLiters > 0) {
+              totalAllowanceLiters += shiftAllowLiters;
+              totalAllowanceValue += shiftAllowValue;
+              rows.push({ sh, shiftAllowLiters, shiftAllowValue, byFuel });
+            }
+          });
+
+          // Stats
+          const statsEl = document.getElementById("allowances-stats");
+          if (statsEl)
+            statsEl.innerHTML = `
+          <div style="background:var(--surface);border:2px solid var(--accent);border-radius:10px;padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--text3);margin-bottom:6px">⚖️ إجمالي العيارات</div>
+            <div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--accent)">${(+totalAllowanceLiters || 0).toFixed(2)}</div>
+            <div style="font-size:10px;color:var(--text3)">لتر</div>
+          </div>
+          <div style="background:var(--surface);border:1px solid var(--red);border-radius:10px;padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--text3);margin-bottom:6px">💸 القيمة المالية</div>
+            <div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--red)">${(+totalAllowanceValue || 0).toFixed(2)}</div>
+            <div style="font-size:10px;color:var(--text3)">جنيه</div>
+          </div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--text3);margin-bottom:6px">🔄 عدد الورديات</div>
+            <div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--blue)">${rows.length}</div>
+            <div style="font-size:10px;color:var(--text3)">وردية</div>
+          </div>
+          <div style="background:var(--surface);border:1px solid var(--green);border-radius:10px;padding:14px;text-align:center">
+            <div style="font-size:11px;color:var(--text3);margin-bottom:6px">📊 متوسط / وردية</div>
+            <div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--green)">${rows.length > 0 ? (totalAllowanceLiters / rows.length).toFixed(2) : "0.00"}</div>
+            <div style="font-size:10px;color:var(--text3)">لتر</div>
+          </div>`;
+
+          // Table rows
+          let html = "";
+          rows
+            .slice()
+            .reverse()
+            .forEach(({ sh, shiftAllowLiters, shiftAllowValue, byFuel }) => {
+              const fuelBreakdown = Object.entries(byFuel)
+                .map(([fid, v]) => {
+                  const f = DB.fuels.find((x) => x.id === fid);
+                  return `<span style="background:var(--surface3);border-radius:4px;padding:2px 6px;font-size:10px;color:${f ? f.color : "var(--text2)"}">${f ? f.name : fid}: ${v.liters.toFixed(2)}ل</span>`;
+                })
+                .join(" ");
+              html += `<tr>
+            <td style="font-weight:600">${sh.name}</td>
+            <td style="font-size:11px;color:var(--text3)">${new Date(sh.endTime || sh.startTime || 0).toLocaleDateString("ar-EG")}</td>
+            <td>${sh.supervisor || "—"}</td>
+            <td><span style="font-family:var(--mono);font-weight:700;color:var(--accent)">${shiftAllowLiters.toFixed(2)} ل</span><br><div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:3px">${fuelBreakdown}</div></td>
+            <td style="font-family:var(--mono);color:var(--red);font-weight:700">${shiftAllowValue.toFixed(2)} ج</td>
+          </tr>`;
+            });
+
+          const tbody = document.getElementById("allowances-tbody");
+          if (tbody)
+            tbody.innerHTML =
+              html ||
+              '<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:40px">لا توجد عيارات مسجلة في هذه الفترة</td></tr>';
+
+          // Fuel breakdown
+          const breakdown = document.getElementById(
+            "allowances-fuel-breakdown",
+          );
+          if (breakdown) {
+            let bHtml =
+              '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px">';
+            Object.entries(fuelTotals).forEach(([fid, v]) => {
+              if (v.liters <= 0) return;
+              bHtml += `<div style="background:var(--surface2);border-radius:8px;padding:12px;text-align:center;border-right:3px solid ${v.color}">
+              <div style="font-size:12px;font-weight:700;color:${v.color}">${v.name}</div>
+              <div style="font-family:var(--mono);font-size:18px;font-weight:700;margin-top:6px">${v.liters.toFixed(2)} <span style="font-size:11px;color:var(--text3)">ل</span></div>
+              <div style="font-family:var(--mono);font-size:13px;color:var(--red);margin-top:2px">${v.value.toFixed(2)} ج</div>
+            </div>`;
+            });
+            bHtml += "</div>";
+            breakdown.innerHTML =
+              bHtml ||
+              '<div style="text-align:center;color:var(--text3);padding:20px">لا توجد بيانات</div>';
+          }
+        };
+
+        window.printAllowancesReport = function () {
+          const s = DB.settings || {};
+          const periodFilter =
+            document.getElementById("allowance-filter-period")?.value ||
+            "month";
+          const monthFilter =
+            document.getElementById("allowance-filter-month")?.value || "";
+          const now = new Date();
+          let startDate = null,
+            periodLabel = "الكل";
+          if (monthFilter) {
+            const [yr, mo] = monthFilter.split("-").map(Number);
+            startDate = new Date(yr, mo - 1, 1);
+            periodLabel = `${mo}/${yr}`;
+          } else {
+            const labels = {
+              week: "الأسبوع",
+              month: "هذا الشهر",
+              year: "هذه السنة",
+              all: "الكل",
+            };
+            periodLabel = labels[periodFilter] || "الكل";
+            if (periodFilter === "week") {
+              startDate = new Date(now);
+              startDate.setDate(now.getDate() - 6);
+            }
+            if (periodFilter === "month") {
+              startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+            }
+            if (periodFilter === "year") {
+              startDate = new Date(now.getFullYear(), 0, 1);
+            }
+          }
+
+          const fuelTotals = {};
+          DB.fuels.forEach((f) => {
+            fuelTotals[f.id] = {
+              name: f.name,
+              color: f.color,
+              liters: 0,
+              value: 0,
+            };
+          });
+          let totalL = 0,
+            totalV = 0;
+          const rows = [];
+
+          (DB.shifts || []).forEach((sh) => {
+            const d = new Date(sh.endTime || sh.startTime || 0);
+            if (startDate && d < startDate) return;
+            const snap = sh.pumpHandoverSnapshot || {};
+            let shL = 0,
+              shV = 0;
+            Object.values(snap).forEach((ph) => {
+              Object.entries(ph.allowances || {}).forEach(
+                ([nozzleId, allow]) => {
+                  const L = parseFloat(allow) || 0;
+                  if (L <= 0) return;
+                  let fuelPrice = 0,
+                    fuelId = null;
+                  DB.pumps.forEach((pump) =>
+                    pump.nozzles.forEach((nz) => {
+                      if (nz.id === nozzleId) {
+                        const tank = DB.tanks.find((t) => t.id === nz.tankId);
+                        if (tank) {
+                          fuelId = tank.fuelId;
+                          const f = DB.fuels.find((x) => x.id === fuelId);
+                          fuelPrice = f ? parseFloat(f.price) || 0 : 0;
+                        }
+                      }
+                    }),
+                  );
+                  shL += L;
+                  shV += L * fuelPrice;
+                  if (fuelId && fuelTotals[fuelId]) {
+                    fuelTotals[fuelId].liters += L;
+                    fuelTotals[fuelId].value += L * fuelPrice;
+                  }
+                },
+              );
+            });
+            if (shL > 0) {
+              totalL += shL;
+              totalV += shV;
+              rows.push({ sh, shL, shV });
+            }
+          });
+
+          const tableRows = rows
+            .slice()
+            .reverse()
+            .map(
+              (
+                r,
+                i,
+              ) => `<tr style="background:${i % 2 === 0 ? "#111418" : "#181c22"}">
+          <td style="border:1px solid #252b35;padding:8px;text-align:center;color:#94a3b8">${i + 1}</td>
+          <td style="border:1px solid #252b35;padding:8px;font-weight:600;color:#e2e8f0">${r.sh.name}</td>
+          <td style="border:1px solid #252b35;padding:8px;font-size:11px;color:#64748b">${new Date(r.sh.endTime || r.sh.startTime || 0).toLocaleDateString("ar-EG")}</td>
+          <td style="border:1px solid #252b35;padding:8px;color:#e2e8f0">${r.sh.supervisor || "—"}</td>
+          <td style="border:1px solid #252b35;padding:8px;font-weight:700;color:#f59e0b;text-align:right">${r.shL.toFixed(2)} ل</td>
+          <td style="border:1px solid #252b35;padding:8px;font-weight:700;color:#ef4444;text-align:right">${r.shV.toFixed(2)} ج</td>
+        </tr>`,
+            )
+            .join("");
+
+          const fuelBreakRows = Object.values(fuelTotals)
+            .filter((v) => v.liters > 0)
+            .map(
+              (v) =>
+                `<div style="background:#181c22;border:1px solid #252b35;border-right:4px solid ${v.color};border-radius:8px;padding:12px;text-align:center">
+            <div style="font-size:12px;font-weight:700;color:${v.color}">${v.name}</div>
+            <div style="font-size:20px;font-weight:700;margin-top:6px;color:#e2e8f0">${v.liters.toFixed(2)} ل</div>
+            <div style="font-size:13px;color:#ef4444">${v.value.toFixed(2)} ج</div>
+          </div>`,
+            )
+            .join("");
+
+          const html = `<div dir="rtl" style="font-family:'IBM Plex Sans Arabic',Arial,sans-serif;padding:24px;background:#ffffff;color:#111111;min-height:100vh">
+          <div style="text-align:center;border-bottom:3px solid #f59e0b;padding-bottom:16px;margin-bottom:24px">
+            <div style="font-size:24px;font-weight:800;color:#111111">${s.stationName || "المحطة"}</div>
+            <div style="font-size:18px;color:#d97706;font-weight:700;margin-top:4px">⚖️ تقرير تجميع العيارات</div>
+            <div style="font-size:12px;color:#555555;margin-top:6px">الفترة: ${periodLabel} | طباعة: ${now.toLocaleString("ar-EG")}</div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
+            <div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:10px;padding:16px;text-align:center">
+              <div style="font-size:11px;color:#555555;margin-bottom:6px">إجمالي العيارات</div>
+              <div style="font-size:24px;font-weight:700;color:#d97706">${totalL.toFixed(2)} ل</div>
+            </div>
+            <div style="background:#fee2e2;border:1px solid #ef4444;border-radius:10px;padding:16px;text-align:center">
+              <div style="font-size:11px;color:#555555;margin-bottom:6px">القيمة المالية</div>
+              <div style="font-size:24px;font-weight:700;color:#dc2626">${totalV.toFixed(2)} ج</div>
+            </div>
+            <div style="background:#dcfce7;border:1px solid #22c55e;border-radius:10px;padding:16px;text-align:center">
+              <div style="font-size:11px;color:#555555;margin-bottom:6px">عدد الورديات</div>
+              <div style="font-size:24px;font-weight:700;color:#16a34a">${rows.length}</div>
+            </div>
+          </div>
+          ${fuelBreakRows ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:20px">${fuelBreakRows}</div>` : ""}
+          <table style="width:100%;border-collapse:collapse;font-size:13px">
+            <thead><tr style="background:#f5f5f5">
+              <th style="border:1px solid #cccccc;padding:10px;text-align:center;color:#333333;font-weight:600">#</th>
+              <th style="border:1px solid #cccccc;padding:10px;color:#333333;font-weight:600">الوردية</th>
+              <th style="border:1px solid #cccccc;padding:10px;color:#333333;font-weight:600">التاريخ</th>
+              <th style="border:1px solid #cccccc;padding:10px;color:#333333;font-weight:600">المشرف</th>
+              <th style="border:1px solid #cccccc;padding:10px;text-align:right;color:#333333;font-weight:600">العيار (ل)</th>
+              <th style="border:1px solid #cccccc;padding:10px;text-align:right;color:#333333;font-weight:600">القيمة (ج)</th>
+            </tr></thead>
+            <tbody>${tableRows || '<tr><td colspan="6" style="text-align:center;padding:24px;color:#999999;background:#f9f9f9">لا توجد بيانات</td></tr>'}</tbody>
+            <tfoot><tr style="background:#fef9ec;font-weight:700">
+              <td colspan="4" style="border:1px solid #cccccc;padding:10px;text-align:center;color:#555555">الإجمالي</td>
+              <td style="border:1px solid #cccccc;padding:10px;text-align:right;color:#d97706">${totalL.toFixed(2)} ل</td>
+              <td style="border:1px solid #cccccc;padding:10px;text-align:right;color:#dc2626">${totalV.toFixed(2)} ج</td>
+            </tr></tfoot>
+          </table>
+          <div style="text-align:center;margin-top:30px;border-top:1px solid #dddddd;padding-top:12px;font-size:11px;color:#777777">
+            ${s.stationName || ""} | ${s.phone || ""} | ${s.address || ""}
+          </div>
+        </div>`;
+
+          const win = window.open("", "_blank");
+          win.document.write(
+            `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>تقرير العيارات</title><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;600;700&display=swap" rel="stylesheet"><style>*{box-sizing:border-box;margin:0;padding:0}body{background:#ffffff;color:#111111;font-family:'IBM Plex Sans Arabic',Arial,sans-serif}@media print{body{margin:0;background:#ffffff;-webkit-print-color-adjust:exact;print-color-adjust:exact}}table{width:100%}</style></head><body>${html}</body></html>`,
+          );
+          win.document.close();
+          setTimeout(() => win.print(), 400);
+        };
+
+        // ── 2. حذف الورديات المقفولة ────────────────────────────────────
+        window.deleteClosedShift = function (shiftId) {
+          const sh = (DB.shifts || []).find((s) => s.id === shiftId);
+          if (!sh) return;
+          if (
+            !confirm(
+              `⚠️ حذف الوردية "${sh.name}"؟\n\nهذا الإجراء لا يمكن التراجع عنه.\nالبيانات المالية ستُحذف من السجل.\nهل أنت متأكد؟`,
+            )
+          )
+            return;
+          DB.shifts = DB.shifts.filter((s) => s.id !== shiftId);
+          saveDB();
+          if (typeof renderShiftsHistory === "function") renderShiftsHistory();
+          if (
+            typeof renderDashboard === "function" &&
+            currentPage === "dashboard"
+          )
+            renderDashboard();
+          showToast("🗑 تم حذف الوردية", "info");
+        };
+
+        // ── 3. حذف فاتورة مشتريات ────────────────────────────────────────
+        window.deletePurchaseInvoice = function (pid) {
+          const p = (DB.purchases || []).find((x) => x.id === pid);
+          if (!p) return;
+          const sup = (DB.suppliers || []).find((s) => s.id === p.supplierId);
+          if (
+            !confirm(
+              `⚠️ حذف فاتورة المشتريات؟\n${sup ? sup.name + " | " : ""}${(+p.total).toFixed(2)} ج\n\nسيتم:\n- حذف الفاتورة نهائياً\n- إرجاع الكميات المضافة للمخزون\n- خصم المبلغ من مديونية المورد\n\nمتأكد؟`,
+            )
+          )
+            return;
+
+          // إرجاع كميات المخزون
+          (p.items || []).forEach((item) => {
+            if (item.itemId) {
+              const inv = (DB.inventory || []).find(
+                (i) => i.id === item.itemId,
+              );
+              if (inv)
+                inv.qty = Math.max(0, inv.qty - (parseInt(item.qty) || 0));
+            }
+          });
+
+          // إرجاع مديونية المورد
+          if (sup) {
+            const remaining =
+              p.total - (p.payments || []).reduce((s, pm) => s + pm.amount, 0);
+            sup.balance = Math.max(0, (sup.balance || 0) - remaining);
+          }
+
+          // حذف من الإيداعات (لو كان مدفوع من الخزنة)
+          if (p.depositId) {
+            DB.deposits = (DB.deposits || []).filter(
+              (d) => d.id !== p.depositId,
+            );
+          }
+
+          DB.purchases = DB.purchases.filter((x) => x.id !== pid);
+          saveDB();
+          if (typeof renderPurchases === "function") renderPurchases();
+          if (typeof renderSuppliers === "function") renderSuppliers();
+          showToast("🗑 تم حذف فاتورة المشتريات وإرجاع المخزون", "info");
+        };
+
+        // ── 4. تحديث واجهات الورديات والمشتريات ──────────────────────────
+        // بعد تحميل الصفحة، نضيف الأزرار ديناميكياً
+        const _origRenderShiftsHistory =
+          typeof renderShiftsHistory === "function"
+            ? renderShiftsHistory
+            : null;
+        if (_origRenderShiftsHistory) {
+          renderShiftsHistory = function () {
+            _origRenderShiftsHistory();
+            // بعد الرندر، نضيف زر حذف لكل وردية
+            setTimeout(() => {
+              document
+                .querySelectorAll("#shifts-history-list .shift-history-item")
+                .forEach((item) => {
+                  const shiftId = item.dataset.shiftId;
+                  if (!shiftId || item.querySelector(".shift-delete-btn"))
+                    return;
+                  const delBtn = document.createElement("button");
+                  delBtn.className = "btn btn-danger btn-sm shift-delete-btn";
+                  delBtn.innerHTML = "🗑";
+                  delBtn.title = "حذف هذه الوردية";
+                  delBtn.style.marginRight = "4px";
+                  delBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    deleteClosedShift(shiftId);
+                  };
+                  const actions =
+                    item.querySelector(".shift-actions") ||
+                    item.querySelector('[style*="flex"]');
+                  if (actions) actions.appendChild(delBtn);
+                });
+            }, 100);
+          };
+        }
+
+        // Override renderPurchases to inject delete buttons
+        const _origRenderPurchases =
+          typeof renderPurchases === "function" ? renderPurchases : null;
+        if (_origRenderPurchases) {
+          renderPurchases = function () {
+            _origRenderPurchases();
+            // بعد الرندر، نضيف زر حذف لكل صف في الجدول إن لم يكن موجوداً
+            setTimeout(() => {
+              const tbody = document.getElementById("purchases-tbody");
+              if (!tbody) return;
+              tbody.querySelectorAll("tr").forEach((tr, idx) => {
+                if (tr.querySelector(".purchase-del-btn")) return;
+                const purchase = [...DB.purchases].reverse()[idx];
+                if (!purchase) return;
+                const lastTd = tr.querySelector("td:last-child");
+                if (!lastTd) return;
+                const delBtn = document.createElement("button");
+                delBtn.className = "btn btn-danger btn-sm purchase-del-btn";
+                delBtn.innerHTML = "🗑";
+                delBtn.title = "حذف الفاتورة";
+                delBtn.style.marginRight = "4px";
+                delBtn.onclick = () => deletePurchaseInvoice(purchase.id);
+                lastTd.appendChild(delBtn);
+              });
+            }, 100);
+          };
+        }
+
+        // ── 5. إضافة زر حذف صريح في الورديات المقفولة ────────────────────
+        // نتأكد إن renderShiftsHistory بيضيف data-shift-id وزر حذف
+        // نعمل override لـ renderShiftsHistory الأصلي مباشرة
+        setTimeout(() => {
+          const origFn = window.renderShiftsHistory;
+          if (typeof origFn !== "function") return;
+          window.renderShiftsHistory = function () {
+            origFn();
+            setTimeout(() => {
+              const list = document.getElementById("shifts-history-list");
+              if (!list) return;
+              // لكل عنصر في قائمة الورديات نضيف زر حذف
+              list.querySelectorAll("[data-shift-id]").forEach((item) => {
+                if (item.querySelector(".v28-shift-del")) return;
+                const sid = item.dataset.shiftId;
+                const btn = document.createElement("button");
+                btn.className = "btn btn-danger btn-sm v28-shift-del";
+                btn.innerHTML = "🗑 حذف";
+                btn.style.cssText = "margin-right:4px;font-size:11px";
+                btn.onclick = (e) => {
+                  e.stopPropagation();
+                  window.deleteClosedShift(sid);
+                };
+                const actionsDiv = item.querySelector(
+                  '.card-actions, [style*="gap"]',
+                );
+                if (actionsDiv) actionsDiv.appendChild(btn);
+                else item.appendChild(btn);
+              });
+            }, 150);
+          };
+        }, 800);
+
+        // ── 6. إضافة زرار طباعة لكل وردية في سجل الورديات ─────────────────
+        // ربط دالة printShiftArchive إن لم تكن موجودة
+        if (typeof window.printShiftArchive !== "function") {
+          window.printShiftArchive = function (shiftId) {
+            const sh = (DB.shifts || []).find((s) => s.id === shiftId);
+            if (!sh) {
+              showToast("الوردية غير موجودة", "error");
+              return;
+            }
+            if (typeof printSingleShiftReport === "function")
+              printSingleShiftReport(shiftId);
+            else showToast("⚠️ دالة الطباعة غير متاحة", "error");
+          };
+        }
+
+        console.log(
+          "✅ V28: عيارات شهرية + حذف ورديات + حذف مشتريات + أزرار الحذف",
+        );
       })();
     </script>
   </body>
