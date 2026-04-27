@@ -25631,6 +25631,417 @@ ${bodyHtml}
 
         console.log("✅ V41 PATCH LOADED: Settle-to-Zero Logic implemented.");
       })();
+      // -----------------------------------
+      (function () {
+        "use strict";
+
+        const F42 = (n) =>
+          Number(n || 0).toLocaleString("en-US", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          });
+        const D42 = (iso) =>
+          iso
+            ? new Date(iso).toLocaleString("ar-EG", {
+                dateStyle: "short",
+                timeStyle: "short",
+              })
+            : "—";
+
+        // ── 1. دالة طباعة الوردية الحالية (النشطة) ───────────────────────
+        window.printShiftReport = function () {
+          const s = DB.settings;
+          const shift = DB.currentShift;
+          const shiftTx = DB.transactions.filter(
+            (t) => t.shiftNumber === shift.number,
+          );
+
+          const nozzleData = [];
+          const fuelSummary = {};
+          let totalFromReadings = 0;
+
+          // تجميع قراءات العدادات
+          document.querySelectorAll(".pump-nozzle-end").forEach((inp) => {
+            const pumpId = inp.dataset.pump;
+            const nozzleId = inp.dataset.nozzle;
+            const start = parseFloat(inp.dataset.start) || 0;
+            const price = parseFloat(inp.dataset.price) || 0;
+            const end = parseFloat(inp.value);
+
+            const pump = DB.pumps.find((p) => p.id === pumpId);
+            const nozzle = pump?.nozzles.find((n) => n.id === nozzleId);
+            const tank = nozzle ? tankById(nozzle.tankId) : null;
+            const fuel = tank ? fuelById(tank.fuelId) : null;
+            const allowInp = document.querySelector(
+              `.pump-nozzle-allowance[data-pump="${pumpId}"][data-nozzle="${nozzleId}"]`,
+            );
+            const allowance = parseFloat(allowInp?.value) || 0;
+
+            if (!isNaN(end) && end >= start) {
+              const rawDiff = end - start;
+              const netDiff = Math.max(0, rawDiff - allowance);
+              const val = netDiff * price;
+              totalFromReadings += val;
+
+              nozzleData.push({
+                pumpName: pump?.name || "",
+                nozzleLabel: nozzle?.label || "",
+                start,
+                end,
+                rawDiff,
+                allowance,
+                diff: netDiff,
+                price,
+                value: val,
+                fuelName: fuel?.name || "",
+                fuelColor: fuel?.color || "#fff",
+              });
+
+              const fname = fuel?.name || nozzleId;
+              if (!fuelSummary[fname])
+                fuelSummary[fname] = {
+                  liters: 0,
+                  value: 0,
+                  color: fuel?.color || "#333",
+                };
+              fuelSummary[fname].liters += netDiff;
+              fuelSummary[fname].value += val;
+            }
+          });
+
+          // تجميع حسابات الطلمبات والمنتجات
+          let grandCash = 0,
+            grandVisa = 0,
+            grandTomcard = 0,
+            grandVodafone = 0,
+            grandInstapay = 0,
+            grandSupply = 0,
+            grandCompanies = 0;
+          let grandProductSalesCash = 0,
+            grandProductSalesCompany = 0,
+            grandHandoverCount = 0;
+          let pumpRows = "";
+
+          DB.pumps.forEach((pump) => {
+            const ph = pumpHandover[pump.id] || {};
+            // في نظام التصفير (V41) الكاش الفعلي هو ما تم إدخاله في المحصل
+            const cash =
+              parseFloat(ph.cash) || parseFloat(ph.v41Collected) || 0;
+            const visa = parseFloat(ph.visa) || 0;
+            const tomcard = parseFloat(ph.tomcard) || 0;
+            const vodafone = parseFloat(ph.vodafone) || 0;
+            const instapay = parseFloat(ph.instapay) || 0;
+            const supply = parseFloat(ph.supply) || 0;
+
+            const companies = ph.companies || [];
+            const companiesTotal = companies.reduce(
+              (sum, c) => sum + (parseFloat(c.amount) || 0),
+              0,
+            );
+
+            const productHandovers = ph.productHandovers || [];
+            const productSales = ph.productSales || [];
+            const productSalesCash = productSales
+              .filter((x) => x.destination === "cash")
+              .reduce((s, x) => s + (parseFloat(x.total) || 0), 0);
+            const productSalesCompany = productSales
+              .filter((x) => x.destination === "company")
+              .reduce((s, x) => s + (parseFloat(x.total) || 0), 0);
+            const productSalesTotal = productSalesCash + productSalesCompany;
+
+            const pumpCashTotal = cash + productSalesCash;
+            const pumpCompaniesTotal = companiesTotal + productSalesCompany;
+
+            grandCash += pumpCashTotal;
+            grandVisa += visa;
+            grandTomcard += tomcard;
+            grandVodafone += vodafone;
+            grandInstapay += instapay;
+            grandSupply += supply;
+            grandCompanies += pumpCompaniesTotal;
+            grandProductSalesCash += productSalesCash;
+            grandProductSalesCompany += productSalesCompany;
+            grandHandoverCount += productHandovers.length;
+
+            const pumpNozzles = nozzleData.filter(
+              (n) => n.pumpName === pump.name,
+            );
+            const pumpWorker = ph.workerId
+              ? (DB.workers || []).find((w) => w.id === ph.workerId)?.name
+              : null;
+
+            pumpRows += `
+          <div style="margin-bottom:16px;border:1px solid #ddd;border-radius:8px;overflow:hidden;page-break-inside:avoid">
+            <div style="background:#f5f5f5;padding:8px 12px;font-weight:700;font-size:13px;display:flex;justify-content:space-between;align-items:center">
+              <span>⚙️ ${pump.name}${pumpWorker ? ` — 👷 ${pumpWorker}` : ""}</span>
+              <span style="color:#f59e0b">إجمالي: ${F42(pumpCashTotal + visa + tomcard + vodafone + instapay + pumpCompaniesTotal)} ج</span>
+            </div>
+            <div style="padding:10px 12px">
+              ${
+                pumpNozzles.length > 0
+                  ? `
+              <table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:8px">
+                <thead><tr style="background:#f9f9f9">
+                  <th style="border:1px solid #eee;padding:4px">المسدس</th>
+                  <th style="border:1px solid #eee;padding:4px">البداية</th>
+                  <th style="border:1px solid #eee;padding:4px">النهاية</th>
+                  <th style="border:1px solid #eee;padding:4px;color:#ef4444">العيار (ل)</th>
+                  <th style="border:1px solid #eee;padding:4px">الكمية (ل)</th>
+                  <th style="border:1px solid #eee;padding:4px">القيمة (ج)</th>
+                </tr></thead>
+                <tbody>
+                  ${pumpNozzles
+                    .map(
+                      (n) => `<tr>
+                    <td style="border:1px solid #eee;padding:4px">${n.nozzleLabel} <span style="color:${n.fuelColor}">${n.fuelName}</span></td>
+                    <td style="border:1px solid #eee;padding:4px;text-align:left">${n.start.toFixed(2)}</td>
+                    <td style="border:1px solid #eee;padding:4px;text-align:left">${n.end.toFixed(2)}</td>
+                    <td style="border:1px solid #eee;padding:4px;text-align:left;color:#ef4444;font-weight:700">${n.allowance > 0 ? n.allowance.toFixed(2) + " ل" : "—"}</td>
+                    <td style="border:1px solid #eee;padding:4px;text-align:left;color:#22c55e;font-weight:700">${n.diff.toFixed(2)} ل</td>
+                    <td style="border:1px solid #eee;padding:4px;text-align:left;color:#f59e0b;font-weight:700">${n.value.toFixed(2)} ج</td>
+                  </tr>`,
+                    )
+                    .join("")}
+                </tbody>
+              </table>`
+                  : ""
+              }
+              
+              <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;justify-content:center">
+                <div style="flex:1;min-width:60px;background:#f0fff4;border:1px solid #22c55e;border-radius:6px;padding:6px;text-align:center"><div style="font-size:10px;color:#777">كاش</div><div style="font-weight:700;color:#22c55e">${F42(pumpCashTotal)}</div></div>
+                <div style="flex:1;min-width:60px;background:#eff6ff;border:1px solid #3b82f6;border-radius:6px;padding:6px;text-align:center"><div style="font-size:10px;color:#777">فيزا</div><div style="font-weight:700;color:#3b82f6">${F42(visa)}</div></div>
+                <div style="flex:1;min-width:60px;background:#faf5ff;border:1px solid #a855f7;border-radius:6px;padding:6px;text-align:center"><div style="font-size:10px;color:#777">توم كارد</div><div style="font-weight:700;color:#a855f7">${F42(tomcard)}</div></div>
+                <div style="flex:1;min-width:60px;background:#fef2f2;border:1px solid #ef4444;border-radius:6px;padding:6px;text-align:center"><div style="font-size:10px;color:#777">فودافون</div><div style="font-weight:700;color:#ef4444">${F42(vodafone)}</div></div>
+                <div style="flex:1;min-width:60px;background:#f5f3ff;border:1px solid #8b5cf6;border-radius:6px;padding:6px;text-align:center"><div style="font-size:10px;color:#777">انستا باي</div><div style="font-weight:700;color:#8b5cf6">${F42(instapay)}</div></div>
+                <div style="flex:1;min-width:60px;background:#fff9e6;border:1px solid #f59e0b;border-radius:6px;padding:6px;text-align:center"><div style="font-size:10px;color:#f59e0b">توريد</div><div style="font-weight:700;color:#f59e0b">${F42(supply)}</div></div>
+                <div style="flex:1;min-width:60px;background:#fff3f3;border:1px solid #ddd;border-radius:6px;padding:6px;text-align:center"><div style="font-size:10px;color:#777">شركات</div><div style="font-weight:700;color:#f59e0b">${F42(pumpCompaniesTotal)}</div></div>
+              </div>
+            </div>
+          </div>`;
+          });
+
+          const expenses =
+            parseFloat(document.getElementById("petty-expenses")?.value) || 0;
+          const outgoing =
+            parseFloat(document.getElementById("shift-outgoing")?.value) || 0;
+          const grandTotal =
+            grandCash +
+            grandVisa +
+            grandTomcard +
+            grandVodafone +
+            grandInstapay +
+            grandSupply +
+            grandCompanies;
+          const grandProductSalesTotal =
+            grandProductSalesCash + grandProductSalesCompany;
+
+          const html = `
+        <div class="invoice-a4" style="font-family:'IBM Plex Sans Arabic',sans-serif;direction:rtl">
+          <div style="text-align:center;margin-bottom:16px;border-bottom:2px solid #333;padding-bottom:12px">
+            <div style="font-size:20px;font-weight:900">${s.stationName}</div>
+            <div style="font-size:16px;color:#f59e0b;font-weight:700;margin-top:4px">تقرير تسليم الوردية الحالية</div>
+            <div style="font-size:13px;color:#555;margin-top:2px">${shift.name} — المشرف: ${shift.supervisor}</div>
+            <div style="font-size:12px;color:#777">تاريخ الطباعة: ${new Date().toLocaleString("ar-EG")}</div>
+          </div>
+
+          <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;justify-content:center">
+            <div style="flex:1;min-width:85px;background:#fff9e6;border:2px solid #f59e0b;border-radius:8px;padding:10px;text-align:center"><div style="font-size:10px;color:#777;font-weight:700">📊 إجمالي القراءات</div><div style="font-size:14px;font-weight:900;color:#f59e0b;font-family:monospace">${F42(totalFromReadings)}</div></div>
+            <div style="flex:1;min-width:85px;background:#f0fff4;border:1px solid #22c55e;border-radius:8px;padding:10px;text-align:center"><div style="font-size:10px;color:#777;font-weight:700">💵 كاش (مُحصّل)</div><div style="font-size:14px;font-weight:900;color:#22c55e;font-family:monospace">${F42(grandCash)}</div></div>
+            <div style="flex:1;min-width:85px;background:#eff6ff;border:1px solid #3b82f6;border-radius:8px;padding:10px;text-align:center"><div style="font-size:10px;color:#777;font-weight:700">💳 فيزا</div><div style="font-size:14px;font-weight:900;color:#3b82f6;font-family:monospace">${F42(grandVisa)}</div></div>
+            <div style="flex:1;min-width:85px;background:#faf5ff;border:1px solid #a855f7;border-radius:8px;padding:10px;text-align:center"><div style="font-size:10px;color:#777;font-weight:700">📱 توم كارد</div><div style="font-size:14px;font-weight:900;color:#a855f7;font-family:monospace">${F42(grandTomcard)}</div></div>
+            <div style="flex:1;min-width:85px;background:#fef2f2;border:1px solid #ef4444;border-radius:8px;padding:10px;text-align:center"><div style="font-size:10px;color:#777;font-weight:700">🔴 فودافون</div><div style="font-size:14px;font-weight:900;color:#ef4444;font-family:monospace">${F42(grandVodafone)}</div></div>
+            <div style="flex:1;min-width:85px;background:#f5f3ff;border:1px solid #8b5cf6;border-radius:8px;padding:10px;text-align:center"><div style="font-size:10px;color:#777;font-weight:700">🟣 انستا باي</div><div style="font-size:14px;font-weight:900;color:#8b5cf6;font-family:monospace">${F42(grandInstapay)}</div></div>
+            <div style="flex:1;min-width:85px;background:#fff3f3;border:1px solid #ddd;border-radius:8px;padding:10px;text-align:center"><div style="font-size:10px;color:#777;font-weight:700">🏢 شركات</div><div style="font-size:14px;font-weight:900;color:#f59e0b;font-family:monospace">${F42(grandCompanies)}</div></div>
+          </div>
+
+          <div style="background:#f8fafc;border:1px solid #cbd5e1;border-radius:8px;padding:12px;margin-bottom:16px;display:flex;flex-wrap:wrap;gap:10px;text-align:center;justify-content:center">
+            <div style="flex:1;min-width:100px"><div style="font-size:10px;color:#64748b">💳 إجمالي الإلكتروني</div><div style="font-weight:900;color:#3b82f6;font-family:monospace;font-size:14px">${F42(grandVisa + grandTomcard + grandVodafone + grandInstapay)} ج</div></div>
+            <div style="flex:1;min-width:100px"><div style="font-size:10px;color:#64748b">💸 مصروفات/سلف</div><div style="font-weight:900;color:#ef4444;font-family:monospace;font-size:14px">${F42(expenses + outgoing)} ج</div></div>
+            <div style="flex:1;min-width:100px"><div style="font-size:10px;color:#64748b">📥 إجمالي التوريد</div><div style="font-weight:900;color:#f59e0b;font-family:monospace;font-size:14px">${F42(grandSupply)} ج</div></div>
+            <div style="flex:1;min-width:100px;border-right:2px solid #cbd5e1;padding-right:10px"><div style="font-size:10px;color:#64748b;font-weight:700">💰 كاش مُسلم للخزنة</div><div style="font-weight:900;color:#22c55e;font-size:16px;font-family:monospace">${F42(grandCash - (expenses + outgoing))} ج</div></div>
+          </div>
+
+          ${
+            grandProductSalesTotal > 0 || grandHandoverCount > 0
+              ? `
+          <div style="background:linear-gradient(to left,#faf5ff,#f0fff4);border:1px solid #a855f7;border-radius:8px;padding:12px;margin-bottom:16px">
+            <div style="font-size:13px;font-weight:700;color:#a855f7;margin-bottom:8px">📦🛒 ملخص عهدة ومبيعات المنتجات</div>
+            <div style="display:flex;justify-content:space-around;text-align:center">
+              <div><div style="font-size:10px;color:#777">أصناف العهدة</div><div style="font-weight:700;color:#a855f7;font-size:14px;font-family:monospace">${grandHandoverCount}</div></div>
+              <div><div style="font-size:10px;color:#777">مبيعات كاش</div><div style="font-weight:700;color:#22c55e;font-size:14px;font-family:monospace">${F42(grandProductSalesCash)} ج</div></div>
+              <div><div style="font-size:10px;color:#777">مبيعات شركات</div><div style="font-weight:700;color:#a855f7;font-size:14px;font-family:monospace">${F42(grandProductSalesCompany)} ج</div></div>
+              <div><div style="font-size:10px;color:#777">إجمالي مبيعات المنتجات</div><div style="font-weight:900;color:#f59e0b;font-size:15px;font-family:monospace">${F42(grandProductSalesTotal)} ج</div></div>
+            </div>
+          </div>`
+              : ""
+          }
+
+          <div style="font-size:14px;font-weight:900;margin-bottom:10px;color:#1e293b">📋 تفاصيل كل طلمبة</div>
+          ${pumpRows}
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:20px;padding-top:16px;border-top:2px dashed #cbd5e1">
+            <div style="text-align:center"><div style="height:50px;border-bottom:1px solid #333;margin-bottom:6px"></div><div style="font-size:12px;color:#777;font-weight:700">توقيع مشرف الوردية الحالية<br>${shift.supervisor}</div></div>
+            <div style="text-align:center"><div style="height:50px;border-bottom:1px solid #333;margin-bottom:6px"></div><div style="font-size:12px;color:#777;font-weight:700">توقيع المستلم (الوردية القادمة/الخزنة)</div></div>
+          </div>
+        </div>`;
+
+          if (typeof window.v17OpenPrintWindow === "function") {
+            window.v17OpenPrintWindow(html, "تقرير تسليم الوردية");
+          }
+        };
+
+        // ── 2. دالة طباعة الوردية من الأرشيف (نفس التصميم) ───────────────────
+        window.printShiftArchive = function (shiftId) {
+          const sh = (DB.shifts || []).find((s) => s.id === shiftId);
+          if (!sh) {
+            if (typeof showToast === "function")
+              showToast("الوردية غير موجودة", "error");
+            return;
+          }
+
+          const s = DB.settings;
+          const snap = sh.pumpHandoverSnapshot || {};
+
+          let pumpRowsHtml = "";
+          let grandProductSalesCash = 0,
+            grandProductSalesCompany = 0,
+            grandHandoverCount = 0;
+
+          DB.pumps.forEach((pump) => {
+            const ph = snap[pump.id] || {};
+            const cash =
+              parseFloat(ph.cash) || parseFloat(ph.v41Collected) || 0;
+            const visa = parseFloat(ph.visa) || 0;
+            const tomcard = parseFloat(ph.tomcard) || 0;
+            const vodafone = parseFloat(ph.vodafone) || 0;
+            const instapay = parseFloat(ph.instapay) || 0;
+            const supply = parseFloat(ph.supply) || 0;
+
+            const companies = ph.companies || [];
+            const companiesTotal = companies.reduce(
+              (sum, c) => sum + (parseFloat(c.amount) || 0),
+              0,
+            );
+
+            const productHandovers = ph.productHandovers || [];
+            const productSales = ph.productSales || [];
+            const pSalesCash = productSales
+              .filter((x) => x.destination === "cash")
+              .reduce((sum, x) => sum + (parseFloat(x.total) || 0), 0);
+            const pSalesComp = productSales
+              .filter((x) => x.destination === "company")
+              .reduce((sum, x) => sum + (parseFloat(x.total) || 0), 0);
+
+            grandProductSalesCash += pSalesCash;
+            grandProductSalesCompany += pSalesComp;
+            grandHandoverCount += productHandovers.length;
+
+            const pumpWorker =
+              (sh.workerAssignments || []).find((a) => a.pumpId === pump.id)
+                ?.workerName || "—";
+            const pumpTotal =
+              cash +
+              pSalesCash -
+              supply +
+              visa +
+              tomcard +
+              vodafone +
+              instapay +
+              (companiesTotal + pSalesComp);
+
+            pumpRowsHtml += `
+            <div style="margin-bottom:16px;border:1px solid #ddd;border-radius:8px;overflow:hidden;page-break-inside:avoid">
+              <div style="background:#f5f5f5;padding:8px 12px;font-weight:700;font-size:13px;display:flex;justify-content:space-between">
+                <span>⚙️ ${pump.name} — 👷 ${pumpWorker}</span>
+                <span style="color:#f59e0b">إجمالي: ${F42(pumpTotal)} ج</span>
+              </div>
+              <div style="padding:10px">
+                <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center">
+                  <div style="flex:1;min-width:60px;background:#f0fff4;border:1px solid #22c55e;border-radius:6px;padding:6px;text-align:center"><div style="font-size:9px;color:#666">كاش صافي</div><div style="font-weight:700;font-size:12px;font-family:monospace;color:#22c55e">${F42(cash + pSalesCash - supply)}</div></div>
+                  <div style="flex:1;min-width:60px;background:#eff6ff;border:1px solid #3b82f6;border-radius:6px;padding:6px;text-align:center"><div style="font-size:9px;color:#666">فيزا</div><div style="font-weight:700;font-size:12px;font-family:monospace;color:#3b82f6">${F42(visa)}</div></div>
+                  <div style="flex:1;min-width:60px;background:#faf5ff;border:1px solid #a855f7;border-radius:6px;padding:6px;text-align:center"><div style="font-size:9px;color:#666">توم كارد</div><div style="font-weight:700;font-size:12px;font-family:monospace;color:#a855f7">${F42(tomcard)}</div></div>
+                  <div style="flex:1;min-width:60px;background:#fef2f2;border:1px solid #ef4444;border-radius:6px;padding:6px;text-align:center"><div style="font-size:9px;color:#666">فودافون</div><div style="font-weight:700;font-size:12px;font-family:monospace;color:#ef4444">${F42(vodafone)}</div></div>
+                  <div style="flex:1;min-width:60px;background:#f5f3ff;border:1px solid #8b5cf6;border-radius:6px;padding:6px;text-align:center"><div style="font-size:9px;color:#666">انستا باي</div><div style="font-weight:700;font-size:12px;font-family:monospace;color:#8b5cf6">${F42(instapay)}</div></div>
+                  <div style="flex:1;min-width:60px;background:#fff9e6;border:1px solid #f59e0b;border-radius:6px;padding:6px;text-align:center"><div style="font-size:9px;color:#666">شركات</div><div style="font-weight:700;font-size:12px;font-family:monospace;color:#f59e0b">${F42(companiesTotal + pSalesComp)}</div></div>
+                </div>
+                ${productSales.length > 0 ? `<div style="margin-top:8px;font-size:11px;color:#666;font-weight:700">🛒 مبيعات منتجات: <span style="font-weight:normal;color:#333">${productSales.map((ps) => `${ps.productName} (${ps.qty})`).join("، ")}</span></div>` : ""}
+              </div>
+            </div>`;
+          });
+
+          const dur =
+            sh.endTime && sh.startTime
+              ? (() => {
+                  const m = Math.round(
+                    (new Date(sh.endTime) - new Date(sh.startTime)) / 60000,
+                  );
+                  return m < 60
+                    ? m + " دقيقة"
+                    : Math.floor(m / 60) + "س " + (m % 60) + "د";
+                })()
+              : "—";
+
+          const grandProductSalesTotal =
+            grandProductSalesCash + grandProductSalesCompany;
+
+          const html = `
+          <div class="invoice-a4" style="font-family:'IBM Plex Sans Arabic',sans-serif;direction:rtl">
+            <div style="text-align:center;margin-bottom:16px;border-bottom:2px solid #333;padding-bottom:12px">
+              <div style="font-size:20px;font-weight:900">${s.stationName}</div>
+              <div style="font-size:16px;color:#f59e0b;font-weight:700;margin-top:4px">تقرير تسليم وردية (أرشيف)</div>
+              <div style="font-size:13px;color:#555;margin-top:2px">${sh.name} — المشرف: ${sh.supervisor}</div>
+              <div style="font-size:11px;color:#777">الفترة: ${D42(sh.startTime)} إلى ${D42(sh.endTime)} (${dur})</div>
+            </div>
+
+            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px;justify-content:center">
+              <div style="flex:1;min-width:85px;background:#f0fff4;border:1px solid #22c55e;padding:10px;border-radius:8px;text-align:center"><div style="font-size:10px;color:#555;font-weight:700">كاش الخزنة</div><div style="font-weight:900;font-size:14px;font-family:monospace;color:#22c55e">${F42(sh.actualCash || sh.cash)}</div></div>
+              <div style="flex:1;min-width:85px;background:#eff6ff;border:1px solid #3b82f6;padding:10px;border-radius:8px;text-align:center"><div style="font-size:10px;color:#555;font-weight:700">فيزا</div><div style="font-weight:900;font-size:14px;font-family:monospace;color:#3b82f6">${F42(sh.visa)}</div></div>
+              <div style="flex:1;min-width:85px;background:#faf5ff;border:1px solid #a855f7;padding:10px;border-radius:8px;text-align:center"><div style="font-size:10px;color:#555;font-weight:700">توم كارد</div><div style="font-weight:900;font-size:14px;font-family:monospace;color:#a855f7">${F42(sh.tomcard)}</div></div>
+              <div style="flex:1;min-width:85px;background:#fef2f2;border:1px solid #ef4444;padding:10px;border-radius:8px;text-align:center"><div style="font-size:10px;color:#555;font-weight:700">فودافون</div><div style="font-weight:900;font-size:14px;font-family:monospace;color:#ef4444">${F42(sh.vodafone || 0)}</div></div>
+              <div style="flex:1;min-width:85px;background:#f5f3ff;border:1px solid #8b5cf6;padding:10px;border-radius:8px;text-align:center"><div style="font-size:10px;color:#555;font-weight:700">انستا باي</div><div style="font-weight:900;font-size:14px;font-family:monospace;color:#8b5cf6">${F42(sh.instapay || 0)}</div></div>
+              <div style="flex:1;min-width:85px;background:#fff3f3;border:1px solid #ddd;padding:10px;border-radius:8px;text-align:center"><div style="font-size:10px;color:#555;font-weight:700">شركات</div><div style="font-weight:900;font-size:14px;font-family:monospace;color:#f59e0b">${F42(sh.companies)}</div></div>
+              <div style="flex:1;min-width:85px;background:#fff9e6;border:2px solid #f59e0b;padding:10px;border-radius:8px;text-align:center"><div style="font-size:10px;color:#555;font-weight:700">إجمالي الوردية</div><div style="font-weight:900;font-size:15px;font-family:monospace;color:#f59e0b">${F42(sh.totalRevenue)}</div></div>
+            </div>
+
+            ${
+              grandProductSalesTotal > 0
+                ? `
+            <div style="background:linear-gradient(to left,#faf5ff,#f0fff4);border:1px solid #a855f7;border-radius:8px;padding:12px;margin-bottom:16px">
+              <div style="font-size:13px;font-weight:700;color:#a855f7;margin-bottom:8px">📦 ملخص مبيعات المنتجات</div>
+              <div style="display:flex;justify-content:space-around;text-align:center">
+                <div><div style="font-size:10px;color:#777">مبيعات كاش</div><div style="font-weight:700;color:#22c55e;font-size:14px;font-family:monospace">${F42(grandProductSalesCash)} ج</div></div>
+                <div><div style="font-size:10px;color:#777">مبيعات شركات</div><div style="font-weight:700;color:#a855f7;font-size:14px;font-family:monospace">${F42(grandProductSalesCompany)} ج</div></div>
+                <div><div style="font-size:10px;color:#777">إجمالي مبيعات المنتجات</div><div style="font-weight:900;color:#f59e0b;font-size:15px;font-family:monospace">${F42(grandProductSalesTotal)} ج</div></div>
+              </div>
+            </div>`
+                : ""
+            }
+
+            <div style="font-size:14px;font-weight:900;margin-bottom:10px;color:#1e293b">📋 تفاصيل الطلمبات</div>
+            ${pumpRowsHtml}
+
+            ${
+              sh.cashDiff !== 0
+                ? `
+              <div style="background:#fff0f0;padding:12px;border-radius:8px;margin-top:16px;text-align:center;border:1px solid #ef4444">
+                <span style="font-size:13px;font-weight:700;color:#ef4444">حالة العجز/الزيادة عند التقفيل: </span>
+                <strong style="font-size:16px;font-family:monospace;color:#ef4444">${sh.cashDiff > 0 ? "زيادة +" : "عجز -"} ${F42(Math.abs(sh.cashDiff))} ج</strong>
+              </div>
+            `
+                : ""
+            }
+
+            ${window.buildPrintFooter ? window.buildPrintFooter(s.stationName, s.regNo) : ""}
+          </div>`;
+
+          if (window.v17OpenPrintWindow)
+            window.v17OpenPrintWindow(html, `تقرير ${sh.name}`);
+        };
+
+        console.log(
+          "✅ V42 PATCH LOADED: Unified Shift Print layout with 7 Payment Methods.",
+        );
+      })();
     </script>
   </body>
 </html>
