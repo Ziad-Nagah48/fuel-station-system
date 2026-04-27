@@ -22709,6 +22709,1207 @@ ${bodyHtml}
           "✅ V30 PATCH LOADED: Fixed Deposits Logic in Treasury and Inventory Reports",
         );
       })();
+      // ---------------------------------------------
+      (function () {
+        "use strict";
+
+        const F31 = (n) =>
+          Number(n || 0).toLocaleString("en-US", {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 2,
+          });
+        const D31 = (iso) =>
+          iso
+            ? new Date(iso).toLocaleString("ar-EG", {
+                dateStyle: "short",
+                timeStyle: "short",
+              })
+            : "—";
+
+        // ── 1. تحديث تقرير الجرد الشامل ──────────────────────────────────
+        if (typeof window.printComprehensiveInventory === "function") {
+          window.printComprehensiveInventory = function () {
+            const s = DB.settings;
+
+            // 1. المخزون
+            const invValue = DB.inventory.reduce(
+              (s, item) => s + (item.buyPrice || 0) * item.qty,
+              0,
+            );
+            const invRows = DB.inventory
+              .map(
+                (i) =>
+                  `<tr><td style="border:1px solid #ddd;padding:4px">${i.name}</td><td style="border:1px solid #ddd;padding:4px;font-family:monospace">${i.qty} ${i.unit}</td><td style="border:1px solid #ddd;padding:4px;font-family:monospace">${F31((i.buyPrice || 0) * i.qty)} ج</td></tr>`,
+              )
+              .join("");
+
+            // 2. الوقود
+            const fuelValue = DB.tanks.reduce((s, t) => {
+              const fuel = (DB.fuels || []).find((f) => f.id === t.fuelId);
+              return s + t.level * (fuel ? fuel.price : 0);
+            }, 0);
+            const tankRows = DB.tanks
+              .map((t) => {
+                const fuel = (DB.fuels || []).find((f) => f.id === t.fuelId);
+                return `<tr><td style="border:1px solid #ddd;padding:4px">${t.name}</td><td style="border:1px solid #ddd;padding:4px">${fuel ? fuel.name : "-"}</td><td style="border:1px solid #ddd;padding:4px;font-family:monospace">${t.level.toLocaleString()} ل</td><td style="border:1px solid #ddd;padding:4px;font-family:monospace">${F31(t.level * (fuel ? fuel.price : 0))} ج</td></tr>`;
+              })
+              .join("");
+
+            // 3. الخزينة والأموال (التحديث الجديد للفصل المحاسبي الدقيق)
+            const balance = calcTreasuryBalance(); // الرصيد النهائي بالدرج
+
+            // الإيرادات
+            const cashSales = DB.transactions
+              .filter((t) => t.payMethod === "cash" && t.type !== "shift-close")
+              .reduce((s, t) => s + t.total, 0);
+            const invShiftSales = (DB.invShiftDeliveries || []).reduce(
+              (s, d) => s + d.total,
+              0,
+            );
+            const cashIn = DB.deposits
+              .filter((d) => d.type === "cash-in")
+              .reduce((s, d) => s + d.amount, 0);
+            const totalCashIn = cashSales + invShiftSales + cashIn;
+
+            // المصروفات
+            const totalExpenses = DB.expenses.reduce((s, e) => s + e.amount, 0);
+            const withdrawals = DB.deposits
+              .filter((d) => d.type === "withdrawal")
+              .reduce((s, d) => s + d.amount, 0);
+            const purchaseExpenses = DB.deposits
+              .filter((d) => d.type === "expense")
+              .reduce((s, d) => s + d.amount, 0);
+            const totalMoneyGone =
+              totalExpenses + withdrawals + purchaseExpenses;
+
+            // الإيداعات البنكية (ليست مصروفات)
+            const bankDeposits = DB.deposits
+              .filter((d) => d.type === "deposit")
+              .reduce((s, d) => s + d.amount, 0);
+
+            const companyBalance = (DB.companies || []).reduce(
+              (s, c) => s + c.balance,
+              0,
+            );
+
+            const html = `
+            ${window.buildPrintHeader ? window.buildPrintHeader("تقرير الجرد الشامل الموحد", "أصول — نقدية — ذمم — مخزون", s.stationName, s.address, s.phone) : ""}
+            
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px;text-align:center">
+              <div style="border:2px solid #f59e0b;border-radius:8px;padding:10px;background:#fff9e6"><div style="font-size:10px;color:#555">جرد الوقود</div><div style="font-size:18px;font-weight:900;color:#f59e0b;font-family:monospace">${F31(fuelValue)} ج</div></div>
+              <div style="border:2px solid #3b82f6;border-radius:8px;padding:10px;background:#eff6ff"><div style="font-size:10px;color:#555">جرد المخزن</div><div style="font-size:18px;font-weight:900;color:#3b82f6;font-family:monospace">${F31(invValue)} ج</div></div>
+              <div style="border:2px solid #a855f7;border-radius:8px;padding:10px;background:#faf5ff"><div style="font-size:10px;color:#555">ذمم الشركات</div><div style="font-size:18px;font-weight:900;color:#a855f7;font-family:monospace">${F31(companyBalance)} ج</div></div>
+              <div style="border:2px solid #22c55e;border-radius:8px;padding:10px;background:#f0fff4"><div style="font-size:10px;color:#555">إجمالي الخزينة المتاح</div><div style="font-size:18px;font-weight:900;color:#22c55e;font-family:monospace">${F31(balance)} ج</div></div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
+              <div>
+                <div style="font-weight:700;color:#1a1a2e;margin-bottom:6px;border-bottom:2px solid #1a1a2e;display:inline-block">⛽ جرد الخزانات والوقود</div>
+                <table style="width:100%;font-size:11px">
+                  <thead><tr style="background:#f5f5f5"><th style="border:1px solid #ddd;padding:4px">الخزان</th><th style="border:1px solid #ddd;padding:4px">النوع</th><th style="border:1px solid #ddd;padding:4px">الرصيد</th><th style="border:1px solid #ddd;padding:4px">القيمة</th></tr></thead>
+                  <tbody>${tankRows || '<tr><td colspan="4">لا توجد</td></tr>'}</tbody>
+                  <tfoot><tr style="background:#fff9e6;font-weight:700"><td colspan="3" style="border:1px solid #ddd;padding:4px">الإجمالي</td><td style="border:1px solid #ddd;padding:4px;font-family:monospace;color:#f59e0b">${F31(fuelValue)} ج</td></tr></tfoot>
+                </table>
+              </div>
+              <div>
+                <div style="font-weight:700;color:#1a1a2e;margin-bottom:6px;border-bottom:2px solid #1a1a2e;display:inline-block">📦 جرد المنتجات والزيوت</div>
+                <table style="width:100%;font-size:11px">
+                  <thead><tr style="background:#f5f5f5"><th style="border:1px solid #ddd;padding:4px">الصنف</th><th style="border:1px solid #ddd;padding:4px">الكمية</th><th style="border:1px solid #ddd;padding:4px">القيمة الإجمالية</th></tr></thead>
+                  <tbody>${invRows || '<tr><td colspan="3">لا توجد</td></tr>'}</tbody>
+                  <tfoot><tr style="background:#eff6ff;font-weight:700"><td colspan="2" style="border:1px solid #ddd;padding:4px">الإجمالي</td><td style="border:1px solid #ddd;padding:4px;font-family:monospace;color:#3b82f6">${F31(invValue)} ج</td></tr></tfoot>
+                </table>
+              </div>
+            </div>
+
+            <div style="font-weight:700;color:#1a1a2e;margin-bottom:6px;border-bottom:2px solid #1a1a2e;display:inline-block">💰 حركة الأموال (الخزينة النقدية)</div>
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px;font-size:12px;text-align:center">
+              <div style="border:1px solid #22c55e;border-radius:6px;padding:8px;background:#f0fff4">
+                <div style="color:#16a34a;margin-bottom:4px;font-size:11px;font-weight:700">📥 إجمالي الإيرادات</div>
+                <div style="font-family:monospace;font-weight:900;font-size:18px;color:#22c55e">${F31(totalCashIn)} ج</div>
+                <div style="font-size:9px;color:#888;margin-top:2px">مبيعات + إيرادات أخرى</div>
+              </div>
+              <div style="border:1px solid #ef4444;border-radius:6px;padding:8px;background:#fff0f0">
+                <div style="color:#dc2626;margin-bottom:4px;font-size:11px;font-weight:700">💸 المصروفات والسحوبات</div>
+                <div style="font-family:monospace;font-weight:900;font-size:18px;color:#ef4444">${F31(totalMoneyGone)} ج</div>
+                <div style="font-size:9px;color:#888;margin-top:2px">شاملة الرواتب والمشتريات</div>
+              </div>
+              <div style="border:1px solid #3b82f6;border-radius:6px;padding:8px;background:#eff6ff">
+                <div style="color:#2563eb;margin-bottom:4px;font-size:11px;font-weight:700">🏦 الإيداعات البنكية</div>
+                <div style="font-family:monospace;font-weight:900;font-size:18px;color:#3b82f6">${F31(bankDeposits)} ج</div>
+                <div style="font-size:9px;color:#888;margin-top:2px">محولة من الخزنة للبنك</div>
+              </div>
+              <div style="border:2px solid #f59e0b;border-radius:6px;padding:8px;background:#fff9e6">
+                <div style="color:#d97706;margin-bottom:4px;font-size:11px;font-weight:700">💰 رصيد الخزنة المتاح</div>
+                <div style="font-family:monospace;font-weight:900;font-size:18px;color:#f59e0b">${F31(balance)} ج</div>
+                <div style="font-size:9px;color:#888;margin-top:2px">المتاح حالياً بالدرج</div>
+              </div>
+            </div>
+
+            <div style="background:#1a1a2e;color:#fff;border-radius:10px;padding:16px;display:flex;justify-content:space-between;align-items:center">
+              <div>
+                <div style="font-size:12px;opacity:0.8">رأس مال المحطة التقديري (نقدية + أصول + ذمم)</div>
+              </div>
+              <div style="font-size:28px;font-weight:900;font-family:monospace;color:#f59e0b">
+                ${F31(balance + fuelValue + invValue + companyBalance)} ج
+              </div>
+            </div>
+
+            ${window.buildPrintFooter ? window.buildPrintFooter(s.stationName, s.regNo) : ""}
+          `;
+            if (window.v17OpenPrintWindow)
+              window.v17OpenPrintWindow(html, "تقرير الجرد الشامل");
+          };
+        }
+
+        // ── 2. تحديث تقرير الخزينة الكاملة ──────────────────────────────────
+        if (typeof window.v17PrintFullTreasury === "function") {
+          window.v17PrintFullTreasury = function () {
+            const s = DB.settings;
+
+            // 1. حساب الإجماليات
+            const balance = calcTreasuryBalance();
+            const cashSales = DB.transactions
+              .filter((t) => t.payMethod === "cash" && t.type !== "shift-close")
+              .reduce((s, t) => s + t.total, 0);
+            const invShiftSales = (DB.invShiftDeliveries || []).reduce(
+              (s, d) => s + d.total,
+              0,
+            );
+            const cashIn = DB.deposits
+              .filter((d) => d.type === "cash-in")
+              .reduce((s, d) => s + d.amount, 0);
+            const totalCashIn = cashSales + invShiftSales + cashIn;
+
+            const totalExpenses = DB.expenses.reduce((s, e) => s + e.amount, 0);
+            const withdrawals = DB.deposits
+              .filter((d) => d.type === "withdrawal")
+              .reduce((s, d) => s + d.amount, 0);
+            const purchaseExpenses = DB.deposits
+              .filter((d) => d.type === "expense")
+              .reduce((s, d) => s + d.amount, 0);
+            const totalMoneyGone =
+              totalExpenses + withdrawals + purchaseExpenses;
+
+            const bankDeposits = DB.deposits
+              .filter((d) => d.type === "deposit")
+              .reduce((s, d) => s + d.amount, 0);
+
+            const companiesBalance = (DB.companies || []).reduce(
+              (s, c) => s + c.balance,
+              0,
+            );
+            const fuelValue = (DB.tanks || []).reduce((s, t) => {
+              const fuel = (DB.fuels || []).find((f) => f.id === t.fuelId);
+              return s + t.level * (fuel ? fuel.price : 0);
+            }, 0);
+            const invValue = (DB.inventory || []).reduce(
+              (s, item) => s + (item.buyPrice || 0) * item.qty,
+              0,
+            );
+
+            // 2. تقسيم الجداول
+            const depositsList = [...(DB.deposits || [])].sort(
+              (a, b) => new Date(a.date) - new Date(b.date),
+            );
+            const incomeTable = depositsList.filter(
+              (d) => d.type === "cash-in",
+            );
+            const expensesTable = depositsList.filter(
+              (d) => d.type === "expense" || d.type === "withdrawal",
+            );
+            const bankDepTable = depositsList.filter(
+              (d) => d.type === "deposit",
+            );
+            const pendingList = (DB.transactions || []).filter(
+              (t) => t.payMethod === "pending",
+            );
+
+            const typeLabels = {
+              "cash-in": "💰 إيراد نقدي",
+              deposit: "🏦 إيداع بنكي",
+              expense: "💸 مصروف",
+              withdrawal: "📤 سحب",
+              collection: "✅ تحصيل",
+            };
+
+            const makeRows = (list, color) =>
+              list
+                .map(
+                  (d, i) => `
+            <tr style="${i % 2 === 0 ? "" : "background:#fafafa"}">
+              <td style="border:1px solid #e5e7eb;padding:6px 8px;text-align:center;font-size:10px;color:#888">${i + 1}</td>
+              <td style="border:1px solid #e5e7eb;padding:6px 8px;font-size:10px;white-space:nowrap">${D31(d.date)}</td>
+              <td style="border:1px solid #e5e7eb;padding:6px 8px;font-size:11px">${typeLabels[d.type] || d.type}</td>
+              <td style="border:1px solid #e5e7eb;padding:6px 8px;font-size:11px">${d.bank || "—"}</td>
+              <td style="border:1px solid #e5e7eb;padding:6px 8px;font-size:10px">${d.ref || "—"}</td>
+              <td style="border:1px solid #e5e7eb;padding:6px 8px;font-size:10px">${(d.note || "").substring(0, 40)}${(d.note || "").length > 40 ? "..." : ""}</td>
+              <td style="border:1px solid #e5e7eb;padding:6px 8px;text-align:left;font-weight:700;font-size:12px;color:${color}">${F31(d.amount)} ج</td>
+            </tr>`,
+                )
+                .join("");
+
+            const body = `
+            ${window.buildPrintHeader ? window.buildPrintHeader("الخزينة الرئيسية", "التقرير المالي والحركات النقدية", s.stationName, s.address, s.phone) : ""}
+
+            <div style="display:grid;grid-template-columns:1fr auto;gap:14px;margin-bottom:18px;align-items:start">
+              <div style="background:linear-gradient(135deg,#1a1a2e,#2d3a5e);color:#fff;border-radius:12px;padding:14px 18px">
+                <div style="font-size:9px;color:#f59e0b;font-weight:700;letter-spacing:2px;margin-bottom:6px">📊 الأصول والذمم</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px">
+                  <div><span style="opacity:.7">ذمم الشركات:</span> <strong style="color:#fbbf24">${F31(companiesBalance)} ج</strong></div>
+                  <div><span style="opacity:.7">معلق بالتحويلات:</span> <strong style="color:#c4b5fd">${F31(pendingList.reduce((s, t) => s + t.total, 0))} ج</strong></div>
+                  <div><span style="opacity:.7">قيمة الوقود:</span> <strong style="color:#fbbf24">${F31(fuelValue)} ج</strong></div>
+                  <div><span style="opacity:.7">قيمة المخزون:</span> <strong style="color:#60a5fa">${F31(invValue)} ج</strong></div>
+                </div>
+              </div>
+              <div style="background:#f0fff4;border:2px solid #22c55e;border-radius:8px;padding:16px 30px;text-align:center;min-width:260px">
+                <div style="font-size:10px;color:#777;margin-bottom:2px">صافي رصيد الخزينة المتاح</div>
+                <div style="font-size:28px;font-weight:900;color:${balance >= 0 ? "#22c55e" : "#ef4444"}">${F31(Math.abs(balance))} ج</div>
+                <div style="font-size:11px;color:${balance >= 0 ? "#22c55e" : "#ef4444"};font-weight:700">${balance >= 0 ? "رصيد دائن (متاح بالدرج)" : "عجز"}</div>
+              </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px;font-size:12px;text-align:center">
+              <div style="border:1px solid #22c55e;border-radius:6px;padding:8px;background:#f0fff4">
+                <div style="color:#16a34a;margin-bottom:4px;font-size:11px;font-weight:700">📥 إجمالي الإيرادات</div>
+                <div style="font-family:monospace;font-weight:900;font-size:18px;color:#22c55e">${F31(totalCashIn)} ج</div>
+                <div style="font-size:9px;color:#888;margin-top:2px">مبيعات + إيرادات يدوية</div>
+              </div>
+              <div style="border:1px solid #ef4444;border-radius:6px;padding:8px;background:#fff0f0">
+                <div style="color:#dc2626;margin-bottom:4px;font-size:11px;font-weight:700">💸 المصروفات والسحوبات</div>
+                <div style="font-family:monospace;font-weight:900;font-size:18px;color:#ef4444">${F31(totalMoneyGone)} ج</div>
+                <div style="font-size:9px;color:#888;margin-top:2px">رواتب ومشتريات ونثريات</div>
+              </div>
+              <div style="border:1px solid #3b82f6;border-radius:6px;padding:8px;background:#eff6ff">
+                <div style="color:#2563eb;margin-bottom:4px;font-size:11px;font-weight:700">🏦 الإيداعات البنكية</div>
+                <div style="font-family:monospace;font-weight:900;font-size:18px;color:#3b82f6">${F31(bankDeposits)} ج</div>
+                <div style="font-size:9px;color:#888;margin-top:2px">محولة من الخزنة للبنك</div>
+              </div>
+              <div style="border:2px solid #f59e0b;border-radius:6px;padding:8px;background:#fff9e6">
+                <div style="color:#d97706;margin-bottom:4px;font-size:11px;font-weight:700">💰 رصيد الخزنة الفعلي</div>
+                <div style="font-family:monospace;font-weight:900;font-size:18px;color:#f59e0b">${F31(balance)} ج</div>
+                <div style="font-size:9px;color:#888;margin-top:2px">المتاح حالياً بالدرج</div>
+              </div>
+            </div>
+
+            <div style="margin-bottom:16px">
+              <div style="font-size:12px;font-weight:700;color:#22c55e;margin-bottom:8px;padding:6px 10px;border-right:3px solid #22c55e;background:#f0fff4">
+                💰 الإيرادات اليدوية (لا يشمل المبيعات المباشرة) — إجمالي: ${F31(cashIn)} ج
+              </div>
+              <table>
+                <thead>
+                  <tr style="background:#22c55e;color:#fff;font-size:11px">
+                    <th style="border:1px solid #aaa;padding:6px;text-align:center;width:30px">#</th>
+                    <th style="border:1px solid #aaa;padding:6px;width:95px">التاريخ</th>
+                    <th style="border:1px solid #aaa;padding:6px">النوع</th>
+                    <th style="border:1px solid #aaa;padding:6px">الجهة/البنك</th>
+                    <th style="border:1px solid #aaa;padding:6px;width:70px">المرجع</th>
+                    <th style="border:1px solid #aaa;padding:6px">الملاحظة</th>
+                    <th style="border:1px solid #aaa;padding:6px;width:90px">المبلغ</th>
+                  </tr>
+                </thead>
+                <tbody>${makeRows(incomeTable, "#22c55e") || '<tr><td colspan="7" style="text-align:center;padding:20px;color:#aaa">لا توجد إيرادات يدوية</td></tr>'}</tbody>
+              </table>
+            </div>
+
+            <div style="margin-bottom:16px">
+              <div style="font-size:12px;font-weight:700;color:#ef4444;margin-bottom:8px;padding:6px 10px;border-right:3px solid #ef4444;background:#fff0f0">
+                💸 المصروفات والسحوبات النقدية — إجمالي: ${F31(totalMoneyGone)} ج
+              </div>
+              <table>
+                <thead>
+                  <tr style="background:#ef4444;color:#fff;font-size:11px">
+                    <th style="border:1px solid #aaa;padding:6px;text-align:center;width:30px">#</th>
+                    <th style="border:1px solid #aaa;padding:6px;width:95px">التاريخ</th>
+                    <th style="border:1px solid #aaa;padding:6px">النوع</th>
+                    <th style="border:1px solid #aaa;padding:6px">الجهة</th>
+                    <th style="border:1px solid #aaa;padding:6px;width:70px">المرجع</th>
+                    <th style="border:1px solid #aaa;padding:6px">الملاحظة</th>
+                    <th style="border:1px solid #aaa;padding:6px;width:90px">المبلغ</th>
+                  </tr>
+                </thead>
+                <tbody>${makeRows(expensesTable, "#ef4444") || '<tr><td colspan="7" style="text-align:center;padding:20px;color:#aaa">لا توجد مصروفات</td></tr>'}</tbody>
+              </table>
+            </div>
+
+            ${
+              bankDepTable.length > 0
+                ? `
+            <div style="margin-bottom:16px">
+              <div style="font-size:12px;font-weight:700;color:#3b82f6;margin-bottom:8px;padding:6px 10px;border-right:3px solid #3b82f6;background:#eff6ff">
+                🏦 الإيداعات البنكية (ترحيل من الدرج للبنك) — إجمالي: ${F31(bankDeposits)} ج
+              </div>
+              <table>
+                <thead>
+                  <tr style="background:#3b82f6;color:#fff;font-size:11px">
+                    <th style="border:1px solid #aaa;padding:6px;text-align:center;width:30px">#</th>
+                    <th style="border:1px solid #aaa;padding:6px;width:95px">التاريخ</th>
+                    <th style="border:1px solid #aaa;padding:6px">النوع</th>
+                    <th style="border:1px solid #aaa;padding:6px">البنك</th>
+                    <th style="border:1px solid #aaa;padding:6px;width:70px">الإيصال</th>
+                    <th style="border:1px solid #aaa;padding:6px">الملاحظة</th>
+                    <th style="border:1px solid #aaa;padding:6px;width:90px">المبلغ</th>
+                  </tr>
+                </thead>
+                <tbody>${makeRows(bankDepTable, "#3b82f6")}</tbody>
+              </table>
+            </div>`
+                : ""
+            }
+
+            ${window.buildPrintFooter ? window.buildPrintFooter(s.stationName, s.regNo, "توقيع المدير / المالك", "ختم وتوقيع المحطة") : ""}
+          `;
+
+            if (window.v17OpenPrintWindow)
+              window.v17OpenPrintWindow(html, "تقرير الخزينة الكامل");
+          };
+        }
+
+        console.log(
+          "✅ V31 PATCH LOADED: Separated Bank Deposits from Expenses accurately",
+        );
+      })();
+      // -------------------------------------
+      (function () {
+        "use strict";
+
+        const F32 = (n) =>
+          Number(n || 0).toLocaleString("en-US", {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 2,
+          });
+
+        // ── 1. دالة تعديل الحد الائتماني السريع ──────────────────────────
+        window.v32UpdateCreditLimit = function (cid) {
+          const c = (DB.companies || []).find((x) => x.id === cid);
+          if (!c) return;
+          const promptMsg = `تعديل الحد الائتماني لشركة: ${c.name}\nالحد الحالي: ${F32(c.creditLimit)} ج\n\nأدخل الحد الائتماني الجديد:`;
+          const newValStr = prompt(promptMsg, c.creditLimit);
+          if (newValStr === null) return; // تم الإلغاء
+
+          const newVal = parseFloat(newValStr);
+          if (isNaN(newVal) || newVal < 0) {
+            showToast("أدخل مبلغاً صحيحاً", "error");
+            return;
+          }
+
+          c.creditLimit = newVal;
+          saveDB();
+          if (typeof renderCompanies === "function") renderCompanies();
+          showToast(
+            `✅ تم تعديل الحد الائتماني لشركة ${c.name} إلى ${F32(newVal)} ج`,
+            "success",
+          );
+        };
+
+        // ── 2. تحديث دالة عرض الشركات لتشمل التعديلات الجديدة ────────────
+        if (typeof renderCompanies === "function") {
+          renderCompanies = function () {
+            if (!DB.companies || !DB.companyPayments) {
+              if (!DB.companyPayments) DB.companyPayments = [];
+            }
+            const grid = document.getElementById("companies-grid");
+            if (!grid) return;
+
+            // فصل الديون (التي للمحطة) عن الأرصدة المقدمة (التي للشركات)
+            const totalDue = DB.companies
+              .filter((c) => c.balance > 0)
+              .reduce((s, c) => s + c.balance, 0);
+            const totalAdvance = DB.companies
+              .filter((c) => c.balance < 0)
+              .reduce((s, c) => s + Math.abs(c.balance), 0);
+            const totalCollected = (DB.companyPayments || []).reduce(
+              (s, p) => s + p.amount,
+              0,
+            );
+            const totalCreditSales = DB.companies.reduce((s, c) => {
+              const txs = DB.transactions.filter(
+                (t) => t.companyId === c.id && t.payMethod === "credit",
+              );
+              return s + txs.reduce((ss, t) => ss + t.total, 0);
+            }, 0);
+
+            let statsHtml = `
+            <div style="display:grid;grid-template-columns:repeat(${totalAdvance > 0 ? 4 : 3},1fr);gap:12px;margin-bottom:18px">
+              <div style="background:var(--red-dim);border:1px solid rgba(239,68,68,.3);border-radius:10px;padding:14px;text-align:center">
+                <div style="font-size:11px;color:var(--text3);margin-bottom:4px">💳 ديون مستحقة (لنا)</div>
+                <div style="font-family:var(--mono);font-size:20px;font-weight:700;color:var(--red)">${F32(totalDue)} ج</div>
+              </div>
+              ${
+                totalAdvance > 0
+                  ? `
+              <div style="background:var(--green-dim);border:1px solid rgba(34,197,94,.3);border-radius:10px;padding:14px;text-align:center">
+                <div style="font-size:11px;color:var(--text3);margin-bottom:4px">💰 أرصدة مقدمة (للشركات)</div>
+                <div style="font-family:var(--mono);font-size:20px;font-weight:700;color:var(--green)">${F32(totalAdvance)} ج</div>
+              </div>`
+                  : ""
+              }
+              <div style="background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:14px;text-align:center">
+                <div style="font-size:11px;color:var(--text3);margin-bottom:4px">✅ إجمالي المحصّل تاريخياً</div>
+                <div style="font-family:var(--mono);font-size:20px;font-weight:700;color:var(--text)">${F32(totalCollected)} ج</div>
+              </div>
+              <div style="background:var(--accent-dim);border:1px solid rgba(245,158,11,.3);border-radius:10px;padding:14px;text-align:center">
+                <div style="font-size:11px;color:var(--text3);margin-bottom:4px">🏢 إجمالي مبيعات آجل</div>
+                <div style="font-family:var(--mono);font-size:20px;font-weight:700;color:var(--accent)">${F32(totalCreditSales)} ج</div>
+              </div>
+            </div>`;
+
+            let actionHtml = `
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+              <div style="font-size:13px;font-weight:600">${DB.companies.length} شركة مسجلة</div>
+              <div style="display:flex;gap:8px">
+                <button class="btn btn-secondary btn-sm" onclick="v12PrintAllCompaniesReport()">🖨 كشف كل الشركات</button>
+                <button class="btn btn-primary btn-sm" onclick="openModal('add-company-modal')">+ إضافة شركة</button>
+              </div>
+            </div>`;
+
+            let cardsHtml = "";
+            if (DB.companies.length === 0) {
+              cardsHtml = `<div style="background:var(--surface);border:1px dashed var(--border2);border-radius:12px;padding:40px;text-align:center;color:var(--text3)">
+              <div style="font-size:32px;margin-bottom:12px">🏢</div>
+              <div style="font-size:14px">لا توجد شركات — أضف شركة للبدء</div>
+            </div>`;
+            } else {
+              DB.companies.forEach((c) => {
+                const txs = DB.transactions.filter(
+                  (t) => t.companyId === c.id && t.payMethod === "credit",
+                );
+                const totalSales = txs.reduce((s, t) => s + t.total, 0);
+                const payments = (DB.companyPayments || []).filter(
+                  (p) => p.companyId === c.id,
+                );
+                const totalPaid = payments.reduce((s, p) => s + p.amount, 0);
+                const lastPayment = payments.length
+                  ? [...payments].sort(
+                      (a, b) => new Date(b.date) - new Date(a.date),
+                    )[0]
+                  : null;
+
+                // المعالجة المحاسبية للرصيد الدائن والمدين
+                const isAdvance = c.balance < 0;
+                const absBalance = Math.abs(c.balance);
+                const usedPct =
+                  !isAdvance && c.creditLimit > 0
+                    ? Math.min(
+                        100,
+                        Math.round((c.balance / c.creditLimit) * 100),
+                      )
+                    : 0;
+                const balanceColor = isAdvance
+                  ? "var(--green)"
+                  : c.balance > c.creditLimit * 0.8
+                    ? "var(--red)"
+                    : c.balance > c.creditLimit * 0.5
+                      ? "var(--accent)"
+                      : "var(--text)";
+                const availableCredit = c.creditLimit - c.balance; // لو الرصيد سالب هيتجمع على الحد، وهو المطلوب
+
+                cardsHtml += `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;transition:border-color .15s" onmouseover="this.style.borderColor='var(--border2)'" onmouseout="this.style.borderColor='var(--border)'">
+                <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+                  <div style="width:44px;height:44px;border-radius:10px;background:var(--accent-dim);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;flex-shrink:0">${c.name[0]}</div>
+                  <div style="flex:1;min-width:0">
+                    <div style="font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.name}</div>
+                    <div style="font-size:11px;color:var(--text3)">
+                      حد: <strong style="font-family:var(--mono)">${F32(c.creditLimit)} ج</strong> 
+                      <span onclick="v32UpdateCreditLimit('${c.id}')" style="cursor:pointer;color:var(--accent);font-size:13px;padding:0 4px" title="تعديل الحد الائتماني">✏️</span>
+                      ${c.phone ? " | 📞 " + c.phone : ""}
+                    </div>
+                  </div>
+                  <div style="text-align:center;flex-shrink:0">
+                    <div style="font-size:10px;color:var(--text3)">الاستخدام</div>
+                    <div style="font-size:13px;font-weight:700;color:${isAdvance ? "var(--green)" : balanceColor}">${usedPct}%</div>
+                  </div>
+                </div>
+
+                <div style="background:var(--surface3);border-radius:4px;height:5px;margin-bottom:14px;overflow:hidden">
+                  <div style="background:${balanceColor};height:100%;width:${usedPct}%;transition:width .3s;border-radius:4px"></div>
+                </div>
+
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+                  <div style="background:${isAdvance ? "var(--green-dim)" : "var(--surface2)"};border:1px solid ${isAdvance ? "rgba(34,197,94,0.3)" : "transparent"};border-radius:8px;padding:10px;text-align:center">
+                    <div style="font-size:10px;color:${isAdvance ? "var(--green)" : "var(--text3)"};margin-bottom:2px">${isAdvance ? "🎁 رصيد مقدم للشركة" : "📊 مديونية علينا"}</div>
+                    <div style="font-family:var(--mono);font-size:16px;font-weight:700;color:${balanceColor}">${F32(absBalance)}</div>
+                    <div style="font-size:9px;color:var(--text3)">جنيه</div>
+                  </div>
+                  <div style="background:var(--surface2);border-radius:8px;padding:10px;text-align:center">
+                    <div style="font-size:10px;color:var(--text3);margin-bottom:2px">🔓 ائتمان متاح</div>
+                    <div style="font-family:var(--mono);font-size:16px;font-weight:700;color:var(--text)">${F32(availableCredit)}</div>
+                    <div style="font-size:9px;color:var(--text3)">جنيه</div>
+                  </div>
+                </div>
+
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+                  <div style="background:var(--surface2);border-radius:8px;padding:8px;text-align:center">
+                    <div style="font-size:10px;color:var(--text3)">إجمالي المبيعات</div>
+                    <div style="font-family:var(--mono);font-size:13px;font-weight:600;color:var(--accent)">${F32(totalSales)} ج</div>
+                  </div>
+                  <div style="background:var(--surface2);border-radius:8px;padding:8px;text-align:center">
+                    <div style="font-size:10px;color:var(--text3)">إجمالي المحصّل</div>
+                    <div style="font-family:var(--mono);font-size:13px;font-weight:600;color:var(--text)">${F32(totalPaid)} ج</div>
+                  </div>
+                </div>
+
+                ${
+                  lastPayment
+                    ? `<div style="background:var(--surface3);border-radius:6px;padding:7px 10px;font-size:11px;color:var(--text2);margin-bottom:10px">
+                  آخر دفعة مستلمة: <strong style="font-family:var(--mono)">${F32(lastPayment.amount)} ج</strong> — ${new Date(lastPayment.date).toLocaleDateString("ar-EG")}
+                </div>`
+                    : `<div style="background:var(--surface2);border-radius:6px;padding:7px 10px;font-size:11px;color:var(--text3);margin-bottom:10px">لا توجد مدفوعات مسجلة بعد</div>`
+                }
+
+                <div style="display:flex;gap:6px;flex-wrap:wrap">
+                  <button class="btn btn-danger btn-sm" style="flex:0 0 auto;width:32px;padding:5px;justify-content:center" onclick="deleteCompany('${c.id}')">🗑</button>
+                  <button class="btn btn-success" style="flex:1;font-size:12px" onclick="v15ShowCollectModal('${c.id}')">💰 تحصيل / إيداع</button>
+                  <button class="btn btn-primary btn-sm" style="flex:1;font-size:12px" onclick="v12ShowCompanyDetails('${c.id}')">📋 كشف حساب</button>
+                  <button class="btn btn-secondary btn-sm" style="font-size:12px" onclick="printCompanyStatement('${c.id}')">🖨 طباعة</button>
+                </div>
+              </div>`;
+              });
+            }
+
+            // Check for pending pool
+            const pendingPool = (DB.companyPool || []).filter(
+              (p) => p.status === "pending",
+            );
+            let poolBanner = "";
+            if (pendingPool.length > 0) {
+              const totalPending = pendingPool.reduce(
+                (s, p) => s + p.remaining,
+                0,
+              );
+              poolBanner = `<div style="background:var(--accent-dim);border:1px solid rgba(245,158,11,0.4);border-radius:8px;padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;gap:12px;cursor:pointer" onclick="navigate('company-pool')">
+              <span style="font-size:20px">🏦</span>
+              <div><div style="font-weight:700;color:var(--accent)">يوجد ${F32(totalPending)} ج في انتظار التوزيع في خزينة الشركات</div><div style="font-size:11px;color:var(--text3)">اضغط هنا للانتقال</div></div>
+              <span style="margin-right:auto;color:var(--accent)">←</span>
+            </div>`;
+            }
+
+            grid.parentElement.innerHTML = `<div id="companies-grid-wrapper">
+            ${poolBanner}${statsHtml}${actionHtml}
+            <div class="company-cards" id="companies-grid">${cardsHtml}</div>
+          </div>`;
+          };
+        }
+
+        // ── 3. تحديث نافذة الدفع للسماح بالمبالغ الزائدة (الأرصدة المقدمة) ──
+        if (typeof window.v15ShowCollectModal === "function") {
+          window.v15ShowCollectModal = function (cid) {
+            const c = (DB.companies || []).find((x) => x.id === cid);
+            if (!c) return;
+
+            let modal = document.getElementById("v15-collect-modal");
+            if (!modal) {
+              modal = document.createElement("div");
+              modal.id = "v15-collect-modal";
+              modal.className = "modal-overlay";
+              document.body.appendChild(modal);
+              modal.addEventListener("click", (e) => {
+                if (e.target === modal) modal.classList.remove("open");
+              });
+            }
+
+            const isAdvance = c.balance < 0;
+            const absBalance = Math.abs(c.balance);
+            const balanceText = isAdvance
+              ? `رصيد مقدم للشركة: <strong style="color:var(--green);font-family:var(--mono);font-size:16px">${F32(absBalance)} ج</strong>`
+              : `الرصيد المستحق (لنا): <strong style="color:var(--red);font-family:var(--mono);font-size:16px">${F32(c.balance)} ج</strong>`;
+
+            modal.innerHTML = `
+            <div class="modal" style="width:440px;max-width:95vw">
+              <div class="modal-header">
+                <span>💰 تحصيل / إيداع دفعة</span>
+                <button class="modal-close" onclick="document.getElementById('v15-collect-modal').classList.remove('open')">✕</button>
+              </div>
+              <div class="modal-body">
+                <div id="v15-collect-company-info" style="background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:12px;margin-bottom:14px">
+                  <div style="font-size:15px;font-weight:700;color:var(--text)">${c.name}</div>
+                  <div style="font-size:12px;color:var(--text2);margin-top:4px">${balanceText}</div>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">المبلغ المستلم (جنيه)</label>
+                  <input type="number" class="form-input" id="v15-collect-amount" placeholder="0" min="0" step="0.01" style="font-size:18px;font-weight:700;text-align:center"/>
+                  <div style="font-size:10px;color:var(--text3);margin-top:4px">ملاحظة: يمكنك إدخال مبلغ أكبر من المديونية وسيتم حفظه كرصيد مقدم.</div>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">طريقة الإيداع</label>
+                  <select class="form-input form-select" id="v15-collect-method">
+                    <option value="cash">💵 نقدي — يدخل الخزنة مباشرة</option>
+                    <option value="tomcard">📱 توم كارد — تحويل معلق</option>
+                    <option value="visa">💳 فيزا — تحويل معلق</option>
+                  </select>
+                </div>
+                <div id="v15-collect-receipt-row" class="form-group" style="display:none">
+                  <label class="form-label">رقم الوصل / المرجع</label>
+                  <input type="text" class="form-input" id="v15-collect-receipt" placeholder="رقم وصل التحويل"/>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">ملاحظة (اختياري)</label>
+                  <input type="text" class="form-input" id="v15-collect-note" placeholder="ملاحظة اختيارية"/>
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button class="btn btn-success" id="v15-collect-save-btn" style="flex:1;justify-content:center;font-size:15px">💾 تأكيد المعاملة</button>
+                <button class="btn btn-secondary" onclick="document.getElementById('v15-collect-modal').classList.remove('open')">إلغاء</button>
+              </div>
+            </div>`;
+
+            document
+              .getElementById("v15-collect-method")
+              .addEventListener("change", function () {
+                document.getElementById(
+                  "v15-collect-receipt-row",
+                ).style.display = this.value !== "cash" ? "block" : "none";
+              });
+
+            document.getElementById("v15-collect-save-btn").onclick = () =>
+              v15DoCollect(cid);
+            modal.classList.add("open");
+            setTimeout(
+              () => document.getElementById("v15-collect-amount").focus(),
+              100,
+            );
+          };
+        }
+
+        // ── 4. تحديث دالة التنفيذ لمعالجة الأرصدة ────────────────────────
+        if (typeof window.v15DoCollect === "function") {
+          window.v15DoCollect = function (cid) {
+            const c = (DB.companies || []).find((x) => x.id === cid);
+            if (!c) return;
+            const amount =
+              parseFloat(document.getElementById("v15-collect-amount").value) ||
+              0;
+            if (amount <= 0) {
+              showToast("أدخل مبلغاً صحيحاً", "error");
+              return;
+            }
+
+            // تم إزالة شرط (amount > c.balance) للسماح بالأرصدة المقدمة
+
+            const method = document.getElementById("v15-collect-method").value;
+            const note = document
+              .getElementById("v15-collect-note")
+              .value.trim();
+            const receipt = document
+              .getElementById("v15-collect-receipt")
+              .value.trim();
+            const prevBalance = c.balance;
+
+            // خصم من المديونية (ولو زاد المبلغ هيتحول لسالب = رصيد دائن/مقدم)
+            c.balance -= amount;
+
+            // تسجيل في سجل المدفوعات للشركة
+            if (!DB.companyPayments) DB.companyPayments = [];
+            DB.companyPayments.push({
+              id: "CP" + Date.now(),
+              date: new Date().toISOString(),
+              companyId: cid,
+              amount,
+              prevBalance,
+              newBalance: c.balance,
+              method,
+              receipt,
+              note,
+              shiftNumber: DB.currentShift.number,
+              shiftName: DB.currentShift.name,
+              type: "collection",
+            });
+
+            // حركة الأموال في المحطة
+            if (method === "cash") {
+              if (!DB.deposits) DB.deposits = [];
+              DB.deposits.push({
+                id: "D" + Date.now(),
+                date: new Date().toISOString(),
+                type: "cash-in",
+                amount,
+                bank: "تحصيل شركات",
+                ref: receipt || cid,
+                note: `تحصيل من ${c.name}${note ? " — " + note : ""} | الرصيد بعد: ${c.balance < 0 ? "مقدم " + F32(Math.abs(c.balance)) : "مديونية " + F32(c.balance)}`,
+              });
+              showToast(
+                `✅ تم استلام ${F32(amount)} ج نقداً من ${c.name} — دخل الخزنة`,
+                "success",
+              );
+            } else {
+              const methodLabel = method === "tomcard" ? "توم كارد" : "فيزا";
+              if (!DB.transactions) DB.transactions = [];
+              DB.transactions.push({
+                id: "TX" + Date.now() + Math.random().toString(36).slice(2, 5),
+                date: new Date().toISOString(),
+                name: `تحصيل ${methodLabel} — ${c.name}`,
+                items: [],
+                qty: 0,
+                total: amount,
+                payMethod: "pending",
+                companyId: cid,
+                receiptNo: receipt,
+                shiftNumber: DB.currentShift.number,
+                shiftName: DB.currentShift.name,
+                note: `${note || "دفعة شركة"} — ${receipt ? "وصل: " + receipt : ""}`,
+                type: "company-collection",
+                originalMethod: method,
+              });
+              showToast(
+                `✅ تم تسجيل ${F32(amount)} ج ${methodLabel} من ${c.name} — معلق بانتظار التأكيد`,
+                "info",
+              );
+            }
+
+            saveDB();
+            document
+              .getElementById("v15-collect-modal")
+              .classList.remove("open");
+
+            if (typeof renderCompanies === "function") renderCompanies();
+            if (
+              typeof renderTreasury === "function" &&
+              currentPage === "treasury"
+            )
+              renderTreasury();
+          };
+        }
+
+        // Re-render UI to apply patch immediately if on companies page
+        setTimeout(() => {
+          if (
+            typeof currentPage !== "undefined" &&
+            currentPage === "companies"
+          ) {
+            renderCompanies();
+          }
+        }, 100);
+
+        console.log(
+          "✅ V32 PATCH LOADED: Credit Limit adjustment & Advance Payments supported",
+        );
+      })();
+      // -------------------------------------
+      (function () {
+        "use strict";
+
+        const F33 = (n) =>
+          Number(n || 0).toLocaleString("en-US", {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 2,
+          });
+        const D33 = (iso) =>
+          iso
+            ? new Date(iso).toLocaleString("ar-EG", {
+                dateStyle: "short",
+                timeStyle: "short",
+              })
+            : "—";
+
+        // ── 1. تحديث عرض الشاشة (إخفاء الآجل وضبط الكروت والجداول) ─────────
+        if (typeof renderTransfersReport === "function") {
+          renderTransfersReport = function () {
+            const filter =
+              typeof transferFilter !== "undefined" ? transferFilter : "month";
+            const { start } =
+              typeof getDateRange === "function"
+                ? getDateRange(filter)
+                : {
+                    start: new Date(
+                      new Date().getFullYear(),
+                      new Date().getMonth(),
+                      1,
+                    ),
+                  };
+
+            // تصفية المعاملات حسب التاريخ
+            const filtered = (DB.transactions || []).filter(
+              (t) => new Date(t.date) >= start,
+            );
+
+            // استخراج الأقسام الأربعة فقط (بدون الآجل)
+            const tomcardTx = filtered.filter(
+              (t) =>
+                t.payMethod === "tomcard" || t.handoverPayMethod === "tomcard",
+            );
+            const visaTx = filtered.filter(
+              (t) => t.payMethod === "pos" || t.handoverPayMethod === "visa",
+            );
+            const vodafoneTx = filtered.filter(
+              (t) =>
+                t.payMethod === "vodafone" ||
+                t.handoverPayMethod === "vodafone",
+            );
+            const instapayTx = filtered.filter(
+              (t) =>
+                t.payMethod === "instapay" ||
+                t.handoverPayMethod === "instapay",
+            );
+
+            // حساب الحالات (معلق / مؤكد)
+            const calcStats = (list) => {
+              const pending = list
+                .filter((t) => !t.confirmed)
+                .reduce((s, t) => s + t.total, 0);
+              const confirmed = list
+                .filter((t) => t.confirmed)
+                .reduce((s, t) => s + t.total, 0);
+              return { total: pending + confirmed, pending, confirmed };
+            };
+
+            const stTomcard = calcStats(tomcardTx);
+            const stVisa = calcStats(visaTx);
+            const stVodafone = calcStats(vodafoneTx);
+            const stInstapay = calcStats(instapayTx);
+
+            // 1. تحديث كروت الإحصائيات العلوية (4 كروت فقط)
+            const sumEl = document.getElementById("transfers-summary-cards");
+            if (sumEl) {
+              sumEl.style.gridTemplateColumns = "repeat(4, 1fr)"; // تغيير الشبكة لـ 4 أعمدة
+              sumEl.innerHTML = `
+              <div style="background:var(--surface);border:1px solid #3b82f6;border-radius:12px;padding:16px;text-align:center">
+                <div style="font-size:11px;color:var(--text3);margin-bottom:6px">💳 فيزا POS</div>
+                <div style="font-family:var(--mono);font-size:22px;font-weight:700;color:#3b82f6">${F33(stVisa.total)}</div>
+                <div style="font-size:11px;color:var(--text3);margin-top:6px;background:var(--surface2);padding:4px;border-radius:4px">
+                  <span style="color:var(--accent)">⏳ ${F33(stVisa.pending)}</span> &nbsp;|&nbsp; <span style="color:var(--green)">✓ ${F33(stVisa.confirmed)}</span>
+                </div>
+              </div>
+              <div style="background:var(--surface);border:1px solid #a855f7;border-radius:12px;padding:16px;text-align:center">
+                <div style="font-size:11px;color:var(--text3);margin-bottom:6px">📱 توم كارد</div>
+                <div style="font-family:var(--mono);font-size:22px;font-weight:700;color:#a855f7">${F33(stTomcard.total)}</div>
+                <div style="font-size:11px;color:var(--text3);margin-top:6px;background:var(--surface2);padding:4px;border-radius:4px">
+                  <span style="color:var(--accent)">⏳ ${F33(stTomcard.pending)}</span> &nbsp;|&nbsp; <span style="color:var(--green)">✓ ${F33(stTomcard.confirmed)}</span>
+                </div>
+              </div>
+              <div style="background:var(--surface);border:1px solid #ef4444;border-radius:12px;padding:16px;text-align:center">
+                <div style="font-size:11px;color:var(--text3);margin-bottom:6px">🔴 فودافون كاش</div>
+                <div style="font-family:var(--mono);font-size:22px;font-weight:700;color:#ef4444">${F33(stVodafone.total)}</div>
+                <div style="font-size:11px;color:var(--text3);margin-top:6px;background:var(--surface2);padding:4px;border-radius:4px">
+                  <span style="color:var(--accent)">⏳ ${F33(stVodafone.pending)}</span> &nbsp;|&nbsp; <span style="color:var(--green)">✓ ${F33(stVodafone.confirmed)}</span>
+                </div>
+              </div>
+              <div style="background:var(--surface);border:1px solid #8b5cf6;border-radius:12px;padding:16px;text-align:center">
+                <div style="font-size:11px;color:var(--text3);margin-bottom:6px">🟣 انستا باي</div>
+                <div style="font-family:var(--mono);font-size:22px;font-weight:700;color:#8b5cf6">${F33(stInstapay.total)}</div>
+                <div style="font-size:11px;color:var(--text3);margin-top:6px;background:var(--surface2);padding:4px;border-radius:4px">
+                  <span style="color:var(--accent)">⏳ ${F33(stInstapay.pending)}</span> &nbsp;|&nbsp; <span style="color:var(--green)">✓ ${F33(stInstapay.confirmed)}</span>
+                </div>
+              </div>
+            `;
+            }
+
+            // 2. إخفاء جدول الآجل وضبط شبكة الجداول
+            const creditTbody = document.getElementById("tr-credit-tbody");
+            if (creditTbody) {
+              const creditCard = creditTbody.closest(".card");
+              if (creditCard) {
+                creditCard.style.display = "none"; // إخفاء كارت الآجل بالكامل
+                const tablesGrid = creditCard.parentElement;
+                // ضبط الـ Grid ليحتوي الكروت المتبقية بشكل متناسق (2 عمود)
+                if (tablesGrid)
+                  tablesGrid.style.gridTemplateColumns = "1fr 1fr";
+              }
+            }
+
+            // 3. دالة بناء صفوف الجداول للواجهة
+            const makeRows = (txList) => {
+              if (txList.length === 0)
+                return `<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:20px">لا توجد معاملات</td></tr>`;
+              return [...txList]
+                .reverse()
+                .map((tx) => {
+                  const comp = tx.companyId ? companyById(tx.companyId) : null;
+                  const statusBadge = tx.confirmed
+                    ? '<span class="tag tag-green" style="font-size:10px">✓ مؤكد ومحصّل</span>'
+                    : '<span class="tag tag-accent" style="font-size:10px">⏳ معلق بالخزنة</span>';
+                  const actionBtn = !tx.confirmed
+                    ? `<button class="btn btn-primary btn-sm" style="font-size:11px" onclick="confirmTransferArrival('${tx.id}')">✓ تأكيد وصول</button>`
+                    : `<button class="btn btn-secondary btn-sm" style="font-size:11px" onclick="undoTransferArrival('${tx.id}')">↶ تراجع</button>`;
+                  const displayAmount = tx.confirmed
+                    ? `<span style="font-family:var(--mono);font-weight:600;color:var(--green)">0.00 ج</span>`
+                    : `<span style="font-family:var(--mono);font-weight:600;color:var(--accent)">${F33(tx.total)} ج</span>`;
+
+                  return `<tr>
+                <td style="font-size:11px;color:var(--text3)">${D33(tx.date)}</td>
+                <td style="font-size:12px;font-weight:600">${comp ? comp.name : tx.name}</td>
+                <td>${displayAmount}</td>
+                <td>${statusBadge}</td>
+                <td>${actionBtn}</td>
+              </tr>`;
+                })
+                .join("");
+            };
+
+            // 4. التأكد من وجود كروت فودافون وانستا باي وتعبئتها
+            const container = document.getElementById("page-transfers-report");
+            if (container) {
+              if (!document.getElementById("tr-vodafone-card")) {
+                const extraTables = document.createElement("div");
+                extraTables.style.cssText =
+                  "display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;";
+                extraTables.innerHTML = `
+                <div class="card" id="tr-vodafone-card">
+                  <div class="card-header" style="color:#ef4444"><span>🔴</span>فودافون كاش</div>
+                  <div class="card-body" style="padding:0"><table class="readings-table"><thead><tr><th>التاريخ</th><th>البيان</th><th>المبلغ</th><th>الحالة</th><th>إجراء</th></tr></thead><tbody id="tr-vodafone-tbody"></tbody></table></div>
+                </div>
+                <div class="card" id="tr-instapay-card">
+                  <div class="card-header" style="color:#8b5cf6"><span>🟣</span>انستا باي</div>
+                  <div class="card-body" style="padding:0"><table class="readings-table"><thead><tr><th>التاريخ</th><th>البيان</th><th>المبلغ</th><th>الحالة</th><th>إجراء</th></tr></thead><tbody id="tr-instapay-tbody"></tbody></table></div>
+                </div>
+              `;
+                container.appendChild(extraTables);
+              }
+              // تعبئة البيانات في الجداول
+              const visaEl = document.getElementById("tr-visa-tbody");
+              const tomcardEl = document.getElementById("tr-tomcard-tbody");
+              const vodafoneEl = document.getElementById("tr-vodafone-tbody");
+              const instapayEl = document.getElementById("tr-instapay-tbody");
+
+              if (visaEl) visaEl.innerHTML = makeRows(visaTx);
+              if (tomcardEl) tomcardEl.innerHTML = makeRows(tomcardTx);
+              if (vodafoneEl) vodafoneEl.innerHTML = makeRows(vodafoneTx);
+              if (instapayEl) instapayEl.innerHTML = makeRows(instapayTx);
+            }
+          };
+        }
+
+        // ── 2. إعادة تصميم تقرير الطباعة (إزالة الآجل وإضافة وسائل الدفع الجديدة) ──
+        if (typeof printTransfersReport === "function") {
+          printTransfersReport = function () {
+            const filter =
+              typeof transferFilter !== "undefined" ? transferFilter : "month";
+            const { start } =
+              typeof getDateRange === "function"
+                ? getDateRange(filter)
+                : {
+                    start: new Date(
+                      new Date().getFullYear(),
+                      new Date().getMonth(),
+                      1,
+                    ),
+                  };
+            const filtered = (DB.transactions || []).filter(
+              (t) => new Date(t.date) >= start,
+            );
+
+            const s = DB.settings;
+            const periodLabels = {
+              day: "اليوم",
+              week: "الأسبوع الحالي",
+              month: "الشهر الحالي",
+              year: "السنة الحالية",
+            };
+
+            // تصفية المعاملات الـ 4
+            const tomcardTx = filtered.filter(
+              (t) =>
+                t.payMethod === "tomcard" || t.handoverPayMethod === "tomcard",
+            );
+            const visaTx = filtered.filter(
+              (t) => t.payMethod === "pos" || t.handoverPayMethod === "visa",
+            );
+            const vodafoneTx = filtered.filter(
+              (t) =>
+                t.payMethod === "vodafone" ||
+                t.handoverPayMethod === "vodafone",
+            );
+            const instapayTx = filtered.filter(
+              (t) =>
+                t.payMethod === "instapay" ||
+                t.handoverPayMethod === "instapay",
+            );
+
+            // دالة مساعدة لطباعة جدول كل قسم
+            const makePrintTable = (txList, title, mainColor, bgColor) => {
+              const pending = txList
+                .filter((t) => !t.confirmed)
+                .reduce((s, t) => s + t.total, 0);
+              const confirmed = txList
+                .filter((t) => t.confirmed)
+                .reduce((s, t) => s + t.total, 0);
+              const total = pending + confirmed;
+
+              const rows =
+                txList.length === 0
+                  ? `<tr><td colspan="5" style="text-align:center;padding:15px;color:#aaa">لا توجد تحويلات</td></tr>`
+                  : [...txList]
+                      .reverse()
+                      .map((tx) => {
+                        const comp = tx.companyId
+                          ? companyById(tx.companyId)
+                          : null;
+                        return `<tr>
+                    <td style="border:1px solid #e2e8f0;padding:6px;font-size:11px;color:#64748b">${D33(tx.date)}</td>
+                    <td style="border:1px solid #e2e8f0;padding:6px;font-weight:600">${comp ? comp.name : tx.name}</td>
+                    <td style="border:1px solid #e2e8f0;padding:6px;font-size:10px;color:#64748b">${tx.note || "—"}</td>
+                    <td style="border:1px solid #e2e8f0;padding:6px;text-align:center;font-weight:700;color:${tx.confirmed ? "#22c55e" : "#f59e0b"}">${tx.confirmed ? "✓ مؤكد" : "⏳ معلق"}</td>
+                    <td style="border:1px solid #e2e8f0;padding:6px;text-align:left;font-family:monospace;font-weight:700;color:${mainColor}">${F33(tx.total)} ج</td>
+                  </tr>`;
+                      })
+                      .join("");
+
+              return `
+              <div style="margin-bottom:20px;page-break-inside:avoid">
+                <div style="background:${mainColor};color:#fff;padding:8px 12px;border-radius:8px 8px 0 0;display:flex;justify-content:space-between;align-items:center">
+                  <div style="font-weight:700;font-size:14px">${title}</div>
+                  <div style="font-size:12px">إجمالي: <span style="font-family:monospace;font-size:14px;font-weight:900">${F33(total)} ج</span></div>
+                </div>
+                <div style="background:${bgColor};border:1px solid ${mainColor};border-top:none;border-radius:0 0 8px 8px;padding:12px">
+                  <div style="display:flex;gap:16px;margin-bottom:10px;font-size:11px">
+                    <div><span style="color:#64748b">⏳ معلق قيد التحصيل:</span> <strong style="font-family:monospace;color:#f59e0b;font-size:13px">${F33(pending)} ج</strong></div>
+                    <div><span style="color:#64748b">✓ مؤكد ومُضاف للخزنة:</span> <strong style="font-family:monospace;color:#22c55e;font-size:13px">${F33(confirmed)} ج</strong></div>
+                  </div>
+                  <table style="width:100%;border-collapse:collapse;font-size:11px;background:#fff">
+                    <thead>
+                      <tr style="background:#f1f5f9;color:#475569">
+                        <th style="border:1px solid #e2e8f0;padding:6px">التاريخ</th>
+                        <th style="border:1px solid #e2e8f0;padding:6px">البيان / الشركة</th>
+                        <th style="border:1px solid #e2e8f0;padding:6px">الملاحظة</th>
+                        <th style="border:1px solid #e2e8f0;padding:6px;text-align:center">الحالة</th>
+                        <th style="border:1px solid #e2e8f0;padding:6px;text-align:left">المبلغ</th>
+                      </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                  </table>
+                </div>
+              </div>
+            `;
+            };
+
+            const bodyHtml = `
+            ${window.buildPrintHeader ? window.buildPrintHeader("تقرير التحويلات الإلكترونية", periodLabels[filter], s.stationName, s.address, s.phone) : ""}
+            
+            <div style="background:#f8fafc;border:1px solid #cbd5e1;border-radius:10px;padding:12px;margin-bottom:20px;text-align:center;font-size:12px;color:#475569">
+              هذا التقرير يوضح حركات الدفع الإلكتروني (فيزا، فودافون كاش، انستا باي، توم كارد).<br>
+              <strong>المبالغ المعلقة ⏳</strong> لم تدخل الخزينة بعد، و <strong>المبالغ المؤكدة ✓</strong> تم استلامها وتسويتها في الخزينة.
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+              <div>
+                ${makePrintTable(visaTx, "💳 فيزا POS", "#3b82f6", "#eff6ff")}
+                ${makePrintTable(vodafoneTx, "🔴 فودافون كاش", "#ef4444", "#fef2f2")}
+              </div>
+              <div>
+                ${makePrintTable(instapayTx, "🟣 انستا باي", "#8b5cf6", "#f5f3ff")}
+                ${makePrintTable(tomcardTx, "📱 توم كارد", "#a855f7", "#faf5ff")}
+              </div>
+            </div>
+
+            ${window.buildPrintFooter ? window.buildPrintFooter(s.stationName, s.regNo, "المحاسب المالي", "مدير المحطة") : ""}
+          `;
+
+            if (window.v17OpenPrintWindow) {
+              window.v17OpenPrintWindow(
+                bodyHtml,
+                `تقرير التحويلات الإلكترونية — ${s.stationName}`,
+              );
+            }
+          };
+        }
+
+        // تحديث الشاشة الحالية لتطبيق التعديلات فوراً
+        setTimeout(() => {
+          if (
+            typeof currentPage !== "undefined" &&
+            currentPage === "transfers-report"
+          ) {
+            renderTransfersReport();
+          }
+        }, 100);
+
+        console.log(
+          "✅ V33 PATCH LOADED: Electronic Transfers Only (Removed Credit/Ajel from UI & Print, 4-Grid Layout applied)",
+        );
+      })();
+      // -------------------------------------
+      (function () {
+        "use strict";
+
+        // إعادة كتابة الدالة المسؤولة عن إضافة المنتجات لعهدة الطلمبة
+        window.addPumpProductHandover = function (pumpId) {
+          var sel = document.getElementById("pump-handover-product-" + pumpId);
+          var qtyInp = document.getElementById("pump-handover-qty-" + pumpId);
+          var productId = sel ? sel.value : "";
+          var qty = parseFloat(qtyInp ? qtyInp.value : 0) || 0;
+
+          if (!productId) {
+            if (typeof showToast === "function")
+              showToast("اختر منتجاً أولاً", "error");
+            return;
+          }
+          if (qty <= 0) {
+            if (typeof showToast === "function")
+              showToast("أدخل كمية صحيحة", "error");
+            return;
+          }
+
+          var item = (DB.inventory || []).find(function (x) {
+            return x.id === productId;
+          });
+          if (!item) return;
+
+          // تهيئة كائن الطلمبة إذا لم يكن موجوداً
+          if (!pumpHandover[pumpId]) {
+            pumpHandover[pumpId] = {
+              cash: "",
+              visa: "",
+              tomcard: "",
+              vodafone: "",
+              instapay: "",
+              supply: "",
+              allowances: {},
+              companies: [],
+              productHandovers: [],
+              productSales: [],
+            };
+          }
+          if (!pumpHandover[pumpId].productHandovers) {
+            pumpHandover[pumpId].productHandovers = [];
+          }
+
+          // 🔴 الإصلاح: البحث عن المنتج إذا كان موجوداً مسبقاً في عهدة هذه الطلمبة
+          var existingIdx = pumpHandover[pumpId].productHandovers.findIndex(
+            function (h) {
+              return h.productId === item.id;
+            },
+          );
+
+          if (existingIdx !== -1) {
+            // الصنف موجود -> نزود الكمية على الصنف الموجود
+            var currentQty =
+              parseFloat(
+                pumpHandover[pumpId].productHandovers[existingIdx].qty,
+              ) || 0;
+            pumpHandover[pumpId].productHandovers[existingIdx].qty =
+              currentQty + qty;
+          } else {
+            // الصنف مش موجود -> إضافة كسطر جديد
+            pumpHandover[pumpId].productHandovers.push({
+              productId: item.id,
+              productName: item.name,
+              qty: qty,
+              unit: item.unit || "",
+            });
+          }
+
+          // تفريغ الحقول بعد الإضافة
+          if (sel) sel.value = "";
+          if (qtyInp) qtyInp.value = "";
+
+          // تحديث الواجهة (رسم قائمة العهدة من جديد للطلمبة دي)
+          if (typeof refreshPumpProductHandoverUI === "function") {
+            refreshPumpProductHandoverUI(pumpId);
+          }
+
+          // إعادة حساب إجماليات الوردية تحسباً لأي تأثير
+          if (typeof recalcPumpTotal === "function") recalcPumpTotal(pumpId);
+          if (typeof recalcShiftGrandTotal === "function")
+            recalcShiftGrandTotal();
+
+          saveDB();
+
+          if (typeof showToast === "function")
+            showToast("✅ تم تحديث عهدة: " + item.name, "success");
+        };
+
+        console.log(
+          "✅ V34 PATCH LOADED: Merged duplicate products in shift handover",
+        );
+      })();
     </script>
   </body>
 </html>
