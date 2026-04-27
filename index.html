@@ -26042,6 +26042,126 @@ ${bodyHtml}
           "✅ V42 PATCH LOADED: Unified Shift Print layout with 7 Payment Methods.",
         );
       })();
+      // -----------------------------------
+      (function () {
+        "use strict";
+
+        // ── 1. خصم اللترات المباعة من الخزانات عند التقفيل ────────────────
+        const _origConfirmCloseV43 = window.confirmCloseShift;
+        window.confirmCloseShift = function () {
+          // أ. حساب اللترات المباعة من كل خزان بناءً على قراءات الشاشة الحالية
+          const tankDeductions = {};
+
+          DB.pumps.forEach((pump) => {
+            document
+              .querySelectorAll(`.pump-nozzle-end[data-pump="${pump.id}"]`)
+              .forEach((inp) => {
+                const nozzleId = inp.dataset.nozzle;
+                const nozzle = pump.nozzles.find((n) => n.id === nozzleId);
+                if (!nozzle || !nozzle.tankId) return;
+
+                const start = parseFloat(inp.dataset.start) || 0;
+                const end = parseFloat(inp.value);
+                const allowInp = document.querySelector(
+                  `.pump-nozzle-allowance[data-pump="${pump.id}"][data-nozzle="${nozzleId}"]`,
+                );
+                const allow = parseFloat(allowInp?.value) || 0;
+
+                if (!isNaN(end) && end >= start) {
+                  const netLiters = Math.max(0, end - start - allow);
+                  if (netLiters > 0) {
+                    tankDeductions[nozzle.tankId] =
+                      (tankDeductions[nozzle.tankId] || 0) + netLiters;
+                  }
+                }
+              });
+          });
+
+          // ب. حفظ عدد الورديات الحالي لمعرفة هل التقفيل نجح أم لا (لأن V41 ممكن تمنع التقفيل لو الكاش مش مصفر)
+          const shiftCountBefore = DB.shifts ? DB.shifts.length : 0;
+
+          // ج. استدعاء دالة التقفيل الأصلية
+          _origConfirmCloseV43.apply(this, arguments);
+
+          // د. التحقق إذا تم التقفيل بنجاح
+          const shiftCountAfter = DB.shifts ? DB.shifts.length : 0;
+          if (shiftCountAfter > shiftCountBefore) {
+            // حفظ الخصومات في الوردية عشان لو عملنا "إعادة فتح" نقدر نرجعها
+            const lastShift = DB.shifts[DB.shifts.length - 1];
+            lastShift.tankDeductions = tankDeductions;
+
+            // تنفيذ الخصم من الخزانات
+            Object.entries(tankDeductions).forEach(([tankId, liters]) => {
+              const tank = DB.tanks.find((t) => t.id === tankId);
+              if (tank) {
+                tank.level = Math.max(0, tank.level - liters);
+              }
+            });
+
+            saveDB();
+
+            // تحديث واجهة قياسات الخزانات في نفس الصفحة لو كانت ظاهرة
+            if (typeof renderTankGaugeInputs === "function") {
+              renderTankGaugeInputs();
+            }
+
+            if (typeof showToast === "function") {
+              showToast("✅ تم خصم اللترات المباعة من الخزانات", "success");
+            }
+          }
+        };
+
+        // ── 2. استرجاع لترات الخزانات عند إعادة فتح الوردية ────────────────
+        if (typeof window.v38ReopenShift === "function") {
+          const _origReopenShiftV43 = window.v38ReopenShift;
+          window.v38ReopenShift = function (shiftId) {
+            const shiftCountBefore = DB.shifts ? DB.shifts.length : 0;
+            const lastShift = DB.shifts
+              ? DB.shifts[DB.shifts.length - 1]
+              : null;
+
+            // تجهيز الأرقام التي سنسترجعها
+            let tankDedsToRestore = lastShift ? lastShift.tankDeductions : null;
+
+            // (Fallback) لو الوردية قديمة ومفيش فيها tankDeductions
+            if (!tankDedsToRestore && lastShift && lastShift.fuelLitersByFuel) {
+              tankDedsToRestore = {};
+              Object.entries(lastShift.fuelLitersByFuel).forEach(
+                ([fid, liters]) => {
+                  // هنضيفها لأول خزان يقابلنا بيشيل نفس نوع الوقود
+                  const tank = DB.tanks.find((t) => t.fuelId === fid);
+                  if (tank)
+                    tankDedsToRestore[tank.id] = parseFloat(liters) || 0;
+                },
+              );
+            }
+
+            // استدعاء دالة الفتح الأصلية
+            _origReopenShiftV43.apply(this, arguments);
+
+            // التحقق إذا تم الفتح بنجاح (عدد الورديات قل)
+            const shiftCountAfter = DB.shifts ? DB.shifts.length : 0;
+            if (shiftCountAfter < shiftCountBefore && tankDedsToRestore) {
+              // إرجاع اللترات للخزانات
+              Object.entries(tankDedsToRestore).forEach(([tankId, liters]) => {
+                const tank = DB.tanks.find((t) => t.id === tankId);
+                if (tank) {
+                  tank.level += liters;
+                }
+              });
+
+              saveDB();
+              if (typeof renderTankGaugeInputs === "function") {
+                renderTankGaugeInputs();
+              }
+            }
+          };
+        }
+
+        console.log(
+          "✅ V43 PATCH LOADED: Tank Levels Deduction on Shift Close & Restore on Reopen",
+        );
+      })();
     </script>
   </body>
 </html>
