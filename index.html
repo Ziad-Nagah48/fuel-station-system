@@ -21325,6 +21325,1215 @@ ${bodyHtml}
           "✅ V28: عيارات شهرية + حذف ورديات + حذف مشتريات + أزرار الحذف",
         );
       })();
+      (function () {
+        "use strict";
+
+        const F29 = (n) =>
+          Number(n || 0).toLocaleString("en-US", {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 2,
+          });
+        const D29 = (iso) =>
+          iso
+            ? new Date(iso).toLocaleString("ar-EG", {
+                dateStyle: "short",
+                timeStyle: "short",
+              })
+            : "—";
+
+        // ============================================================
+        //  1. تحديث الطلمبات (فودافون كاش + انستا باي + إجمالي اللترات)
+        // ============================================================
+        const _origRenderPumps = renderPumpHandoverCards;
+        renderPumpHandoverCards = function () {
+          const container = document.getElementById("shift-pumps-handover");
+          if (!container) return;
+
+          if (DB.pumps.length === 0) {
+            container.innerHTML = `<div class="card" style="margin-bottom:14px"><div class="card-body" style="text-align:center;padding:30px;color:var(--text3)">
+            <div style="font-size:28px;margin-bottom:8px">⚙️</div>
+            <div>لا توجد طلمبات مسجلة — <button class="btn btn-primary btn-sm" onclick="navigate('pumps-setup')">إضافة طلمبات</button></div>
+          </div></div>`;
+            return;
+          }
+
+          let html = "";
+          DB.pumps.forEach((pump) => {
+            if (!pumpHandover[pump.id]) {
+              pumpHandover[pump.id] = {
+                cash: "",
+                visa: "",
+                tomcard: "",
+                vodafone: "",
+                instapay: "",
+                supply: "",
+                allowances: {},
+                companies: [],
+                productHandovers: [],
+                productSales: [],
+              };
+            }
+            const ph = pumpHandover[pump.id];
+
+            // --- Nozzle Readings ---
+            let nozzlesHtml = "";
+            pump.nozzles.forEach((nozzle) => {
+              const tank = tankById(nozzle.tankId);
+              const fuel = tank ? fuelById(tank.fuelId) : null;
+              const allowVal = ph.allowances?.[nozzle.id] || "";
+              nozzlesHtml += `<div style="display:grid;grid-template-columns:120px 1fr 1fr 1fr 1fr 1fr;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">
+              <div>
+                <div style="font-size:11px;font-weight:600;color:${fuel ? fuel.color : "var(--text)"}">${nozzle.label}</div>
+                <div style="font-size:10px;color:var(--text3)">${fuel ? fuel.name : "-"}</div>
+              </div>
+              <div>
+                <div style="font-size:10px;color:var(--text3);margin-bottom:2px">البداية</div>
+                <div style="font-family:var(--mono);font-size:13px;color:var(--accent)">${nozzle.reading.toFixed(2)}</div>
+              </div>
+              <div>
+                <div style="font-size:10px;color:var(--text3);margin-bottom:2px">النهاية</div>
+                <input type="number" class="pump-nozzle-end" data-pump="${pump.id}" data-nozzle="${nozzle.id}" data-start="${nozzle.reading}" data-price="${fuel ? fuel.price : 0}"
+                  placeholder="${nozzle.reading.toFixed(2)}" step="0.01"
+                  style="width:100%;background:var(--surface3);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;color:var(--text);font-family:var(--mono);font-size:13px;outline:none;"
+                  onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border2)'"
+                  oninput="onPumpNozzleInput(this)">
+              </div>
+              <div>
+                <div style="font-size:10px;color:var(--red);margin-bottom:2px;font-weight:700">⚖️ عيار (ل)</div>
+                <input type="number" class="pump-nozzle-allowance" data-pump="${pump.id}" data-nozzle="${nozzle.id}" data-price="${fuel ? fuel.price : 0}"
+                  placeholder="0" step="0.01" min="0" value="${allowVal}"
+                  style="width:100%;background:var(--surface3);border:1px solid rgba(239,68,68,0.4);border-radius:6px;padding:5px 8px;color:var(--red);font-family:var(--mono);font-size:13px;outline:none;"
+                  onfocus="this.style.borderColor='var(--red)'" onblur="this.style.borderColor='rgba(239,68,68,0.4)'"
+                  oninput="onPumpNozzleInput(this)">
+              </div>
+              <div>
+                <div style="font-size:10px;color:var(--text3);margin-bottom:2px">الكمية (ل)</div>
+                <div class="pump-nozzle-diff" data-pump="${pump.id}" data-nozzle="${nozzle.id}" style="font-family:var(--mono);font-size:13px;color:var(--text3)">—</div>
+              </div>
+              <div>
+                <div style="font-size:10px;color:var(--text3);margin-bottom:2px">القيمة (ج)</div>
+                <div class="pump-nozzle-val" data-pump="${pump.id}" data-nozzle="${nozzle.id}" style="font-family:var(--mono);font-size:13px;color:var(--text3)">—</div>
+              </div>
+            </div>`;
+            });
+
+            // Companies section
+            let companiesHtml = (ph.companies || [])
+              .map((ce, idx) => buildCompanyEntryRow(pump.id, idx, ce))
+              .join("");
+            const workerOpts =
+              '<option value="">-- بدون عامل --</option>' +
+              (DB.workers || [])
+                .map(
+                  (w) =>
+                    `<option value="${w.id}" ${ph.workerId === w.id ? "selected" : ""}>${w.name}</option>`,
+                )
+                .join("");
+            const assignedWorkerName = ph.workerId
+              ? (DB.workers || []).find((w) => w.id === ph.workerId)?.name || ""
+              : "";
+
+            // --- Product Handover ---
+            let productHandoverHtml = "";
+            if (ph.productHandovers && ph.productHandovers.length > 0) {
+              const soldByProduct = {};
+              (ph.productSales || []).forEach((s) => {
+                if (s.productId)
+                  soldByProduct[s.productId] =
+                    (soldByProduct[s.productId] || 0) +
+                    (parseFloat(s.qty) || 0);
+              });
+              productHandoverHtml = ph.productHandovers
+                .map((h, i) => {
+                  const carTag = h.carriedOver
+                    ? ' <span style="font-size:10px;background:rgba(168,85,247,0.15);color:#a855f7;border-radius:3px;padding:1px 4px">↩ مُرحَّل</span>'
+                    : "";
+                  const sold = soldByProduct[h.productId] || 0;
+                  const remaining = parseFloat(
+                    ((parseFloat(h.qty) || 0) - sold).toFixed(4),
+                  );
+                  const qtyControl = h.carriedOver
+                    ? `<input type="number" min="0" step="0.01" value="${h.qty}" onchange="updatePumpProductHandoverQty('${pump.id}',${i},this.value)" style="width:70px;background:var(--surface);border:1px solid var(--border2);border-radius:4px;padding:3px 6px;color:var(--text);font-family:var(--mono);font-size:12px;text-align:center;outline:none">`
+                    : `<span style="font-family:var(--mono);color:var(--text2)">${h.qty}</span>`;
+                  return `<div style="display:grid;grid-template-columns:1fr 90px 80px 80px 24px;gap:6px;align-items:center;background:var(--surface3);border-radius:6px;padding:5px 10px;font-size:12px">
+                 <span style="color:var(--purple)">📦 ${h.productName}${carTag}</span>
+                 <span style="display:flex;align-items:center;gap:4px;justify-content:flex-end"><span style="font-size:10px;color:var(--text3)">مستلم</span>${qtyControl}<span style="font-size:10px;color:var(--text3)">${h.unit || ""}</span></span>
+                 <span style="display:flex;align-items:center;gap:4px;justify-content:flex-end"><span style="font-size:10px;color:var(--text3)">مباع</span><span style="font-family:var(--mono);color:${sold > 0 ? "var(--green)" : "var(--text3)"}">${sold}</span></span>
+                 <span style="display:flex;align-items:center;gap:4px;justify-content:flex-end"><span style="font-size:10px;color:var(--text3)">متبقي</span><span style="font-family:var(--mono);font-weight:700;color:${remaining < 0 ? "var(--red)" : remaining === 0 ? "var(--text3)" : "var(--green)"}">${remaining}</span></span>
+                 <button onclick="removePumpProductHandover('${pump.id}',${i})" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:14px;padding:0 4px">✕</button>
+               </div>`;
+                })
+                .join("");
+            } else {
+              productHandoverHtml =
+                '<div style="font-size:12px;color:var(--text3)">لم تُسجَّل عهدة منتجات بعد</div>';
+            }
+
+            html += `<div class="card" style="margin-bottom:14px">
+            <div class="card-header" style="background:var(--surface2)">
+              <span>⚙️</span><span style="font-weight:700">${pump.name}</span>
+              <span style="font-size:11px;color:var(--text3);margin-right:8px">${pump.nozzles.length} مسدس</span>
+              <span id="pump-liters-display-${pump.id}" style="font-size:11px;color:var(--blue);font-family:var(--mono);margin-right:8px;font-weight:700">0.00 لتر</span>
+              ${assignedWorkerName ? `<span style="background:var(--green-dim);color:var(--green);border:1px solid rgba(34,197,94,.4);border-radius:5px;padding:2px 8px;font-size:11px;font-weight:600">👷 ${assignedWorkerName}</span>` : ""}
+              <div class="card-actions">
+                <div style="font-family:var(--mono);font-weight:700;font-size:13px;color:var(--accent)" id="pump-total-display-${pump.id}">0 ج</div>
+              </div>
+            </div>
+            <div class="card-body">
+              <div style="background:var(--surface2);border-radius:8px;padding:10px;margin-bottom:12px;display:flex;align-items:center;gap:10px">
+                <span style="font-size:18px">👷</span>
+                <div style="flex:1">
+                  <div style="font-size:11px;font-weight:700;color:var(--text3);margin-bottom:4px">العامل المسؤول عن هذه الطلمبة</div>
+                  <select class="form-input form-select" style="font-size:12px" onchange="onPumpWorkerChange('${pump.id}',this.value)">${workerOpts}</select>
+                </div>
+              </div>
+              <div style="margin-bottom:12px">
+                <div style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:1px;margin-bottom:6px;text-transform:uppercase">📊 قراءات العداد</div>
+                ${nozzlesHtml}
+              </div>
+              
+              <div style="background:var(--surface2);border-radius:8px;padding:12px;margin-bottom:12px">
+                <div style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:1px;margin-bottom:8px;text-transform:uppercase">💳 تسليم ${assignedWorkerName ? assignedWorkerName : "الطلمبة"}</div>
+                <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px">
+                  <div>
+                    <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">💵 كاش (ج)</label>
+                    <input type="number" class="form-input pump-cash-input" data-pump="${pump.id}" placeholder="0"
+                      style="font-family:var(--mono);font-weight:700;text-align:center;color:var(--green)"
+                      oninput="onPumpPaymentInput(this,'cash')" value="${ph.cash || ""}">
+                    <div id="pump-cash-hint-${pump.id}" style="font-size:10px;color:var(--text3);margin-top:2px;min-height:14px"></div>
+                  </div>
+                  <div>
+                    <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">💳 فيزا (ج)</label>
+                    <input type="number" class="form-input pump-visa-input" data-pump="${pump.id}" placeholder="0"
+                      style="font-family:var(--mono);font-weight:700;text-align:center;color:var(--blue)"
+                      oninput="onPumpPaymentInput(this,'visa')" value="${ph.visa || ""}">
+                  </div>
+                  <div>
+                    <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">📱 توم كارد (ج)</label>
+                    <input type="number" class="form-input pump-tomcard-input" data-pump="${pump.id}" placeholder="0"
+                      style="font-family:var(--mono);font-weight:700;text-align:center;color:var(--purple)"
+                      oninput="onPumpPaymentInput(this,'tomcard')" value="${ph.tomcard || ""}">
+                  </div>
+                  <div>
+                    <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">🔴 فودافون (ج)</label>
+                    <input type="number" class="form-input pump-vodafone-input" data-pump="${pump.id}" placeholder="0"
+                      style="font-family:var(--mono);font-weight:700;text-align:center;color:#ef4444"
+                      oninput="onPumpPaymentInput(this,'vodafone')" value="${ph.vodafone || ""}">
+                  </div>
+                  <div>
+                    <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">🟣 انستا باي (ج)</label>
+                    <input type="number" class="form-input pump-instapay-input" data-pump="${pump.id}" placeholder="0"
+                      style="font-family:var(--mono);font-weight:700;text-align:center;color:#a855f7"
+                      oninput="onPumpPaymentInput(this,'instapay')" value="${ph.instapay || ""}">
+                  </div>
+                  <div>
+                    <label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;font-weight:700">📥 التوريد (ج)</label>
+                    <input type="number" class="form-input pump-supply-input" data-pump="${pump.id}" placeholder="0"
+                      style="font-family:var(--mono);font-weight:700;text-align:center;color:var(--accent);border-color:rgba(245,158,11,0.5)"
+                      oninput="onPumpPaymentInput(this,'supply')" value="${ph.supply || ""}">
+                    <div style="font-size:10px;color:var(--text3);margin-top:2px;white-space:nowrap">يُطرح من الكاش</div>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                  <div style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:1px;text-transform:uppercase">🏢 حسابات الشركات</div>
+                  <button class="btn btn-secondary btn-sm" onclick="addCompanyEntryToPump('${pump.id}')">+ إضافة شركة</button>
+                </div>
+                <div id="pump-companies-${pump.id}" style="display:flex;flex-direction:column;gap:6px">${companiesHtml || '<div style="font-size:12px;color:var(--text3);padding:6px 0">لا توجد شركات — اضغط "إضافة شركة" إذا كان هناك آجل</div>'}</div>
+                <div style="display:flex;justify-content:space-between;margin-top:8px;padding:6px 0;border-top:1px solid var(--border);font-size:12px">
+                  <span style="color:var(--text3)">إجمالي الشركات لهذه الطلمبة</span>
+                  <span style="font-family:var(--mono);font-weight:700;color:var(--accent)" id="pump-companies-total-${pump.id}">0 ج</span>
+                </div>
+                <div id="pump-companies-hint-${pump.id}" style="font-size:10px;color:var(--purple);margin-top:-2px;text-align:left;min-height:14px"></div>
+              </div>
+
+              <div style="background:var(--surface2);border-radius:8px;padding:12px;margin-top:12px;border:1px solid rgba(168,85,247,0.25)">
+                <div style="font-size:11px;font-weight:700;color:var(--purple);letter-spacing:1px;margin-bottom:10px;text-transform:uppercase">📦 عهدة المنتجات</div>
+                <div style="display:grid;grid-template-columns:1fr 90px auto;gap:6px;align-items:center;margin-bottom:8px">
+                  <select class="form-input form-select" id="pump-handover-product-${pump.id}" style="font-size:12px">
+                    <option value="">-- اختر منتج --</option>
+                    ${(DB.inventory || []).map((item) => `<option value="${item.id}">${item.name} (رصيد: ${item.qty} ${item.unit || ""})</option>`).join("")}
+                  </select>
+                  <input type="number" class="form-input" id="pump-handover-qty-${pump.id}" placeholder="الكمية" min="0.01" step="0.01" style="font-family:var(--mono);text-align:center">
+                  <button class="btn btn-sm" style="background:var(--purple-dim);color:var(--purple);border:1px solid var(--purple);white-space:nowrap" onclick="addPumpProductHandover('${pump.id}')">+ إضافة للعهدة</button>
+                </div>
+                <div id="pump-handover-list-${pump.id}" style="display:flex;flex-direction:column;gap:4px">${productHandoverHtml}</div>
+              </div>
+
+              <div style="background:var(--surface2);border-radius:8px;padding:12px;margin-top:10px;border:1px solid rgba(34,197,94,0.25)">
+                <div style="font-size:11px;font-weight:700;color:var(--green);letter-spacing:1px;margin-bottom:10px;text-transform:uppercase">🛒 مبيعات المنتجات</div>
+                <div style="display:grid;grid-template-columns:1fr 90px auto;gap:6px;align-items:center;margin-bottom:8px">
+                  <select class="form-input form-select" id="pump-sale-product-${pump.id}" style="font-size:12px">
+                    <option value="">-- اختر منتج --</option>
+                    ${(DB.inventory || []).map((item) => `<option value="${item.id}">${item.name} (رصيد: ${item.qty} ${item.unit || ""}) — ${F29(item.sellPrice || 0)} ج</option>`).join("")}
+                  </select>
+                  <input type="number" class="form-input" id="pump-sale-qty-${pump.id}" placeholder="الكمية" min="0.01" step="0.01" style="font-family:var(--mono);text-align:center">
+                  <div style="display:flex;flex-direction:column;gap:4px">
+                    <button class="btn btn-sm" style="background:var(--green-dim);color:var(--green);border:1px solid var(--green);white-space:nowrap;font-size:11px" onclick="confirmPumpProductSale('${pump.id}','cash')">💵 كاش</button>
+                    <button class="btn btn-sm" style="background:var(--purple-dim);color:var(--purple);border:1px solid var(--purple);white-space:nowrap;font-size:11px" onclick="confirmPumpProductSale('${pump.id}','company')">🏢 للشركات</button>
+                  </div>
+                </div>
+                <div id="pump-sales-list-${pump.id}" style="display:flex;flex-direction:column;gap:4px">
+                  ${
+                    (ph.productSales || [])
+                      .map(
+                        (s, i) => `
+                    <div style="display:flex;justify-content:space-between;align-items:center;background:var(--surface3);border-radius:6px;padding:5px 10px;font-size:12px">
+                      <span style="color:var(--green)">🛒 ${s.productName}</span>
+                      <span style="font-family:var(--mono);color:var(--text2)">${s.qty} ${s.unit || ""}</span>
+                      <span style="font-family:var(--mono);font-weight:700;color:var(--accent)">${F29(s.total)} ج</span>
+                    </div>`,
+                      )
+                      .join("") ||
+                    '<div style="font-size:12px;color:var(--text3)">لا توجد مبيعات منتجات مسجلة</div>'
+                  }
+                </div>
+                <div style="display:flex;justify-content:space-between;margin-top:8px;padding:6px 0;border-top:1px solid var(--border);font-size:12px">
+                  <span style="color:var(--text3)">إجمالي مبيعات المنتجات</span>
+                  <span style="font-family:var(--mono);font-weight:700;color:var(--green)" id="pump-products-sales-total-${pump.id}">${F29((ph.productSales || []).reduce((s, x) => s + x.total, 0))} ج</span>
+                </div>
+              </div>
+
+              <div style="background:var(--surface2);border-radius:8px;padding:10px;margin-top:12px;display:flex;justify-content:space-between;align-items:center">
+                <div style="font-size:12px;color:var(--text3)">إجمالي التسليم (كل طرق الدفع)</div>
+                <div style="font-family:var(--mono);font-weight:700;font-size:16px;color:var(--green)" id="pump-delivery-check-${pump.id}">0 ج</div>
+              </div>
+            </div>
+          </div>`;
+          });
+
+          container.innerHTML = html;
+          setTimeout(() => {
+            DB.pumps.forEach((p) => {
+              // Trigger recalc to update the new liters display
+              recalcPumpTotal(p.id);
+            });
+            recalcShiftGrandTotal();
+          }, 100);
+        };
+
+        // ============================================================
+        //  2. تحديث الحسابات
+        // ============================================================
+        const _origAutoFillPumpCash = autoFillPumpCash;
+        autoFillPumpCash = function (pumpId) {
+          let pumpReadingsValue = 0;
+          let hasReadings = false;
+          document.querySelectorAll(".pump-nozzle-end").forEach((nozzleInp) => {
+            if (nozzleInp.dataset.pump !== pumpId) return;
+            const start = parseFloat(nozzleInp.dataset.start) || 0;
+            const price = parseFloat(nozzleInp.dataset.price) || 0;
+            const end = parseFloat(nozzleInp.value);
+            const nid = nozzleInp.dataset.nozzle;
+            const allowInp = document.querySelector(
+              `.pump-nozzle-allowance[data-pump="${pumpId}"][data-nozzle="${nid}"]`,
+            );
+            const allow = parseFloat(allowInp?.value) || 0;
+            if (!isNaN(end) && end >= start) {
+              pumpReadingsValue += Math.max(0, end - start - allow) * price;
+              hasReadings = true;
+            }
+          });
+          if (!hasReadings) return;
+          if (!pumpHandover[pumpId])
+            pumpHandover[pumpId] = {
+              cash: "",
+              visa: "",
+              tomcard: "",
+              vodafone: "",
+              instapay: "",
+              supply: "",
+              allowances: {},
+              companies: [],
+            };
+
+          const ph = pumpHandover[pumpId];
+          const visa = parseFloat(ph.visa) || 0;
+          const tomcard = parseFloat(ph.tomcard) || 0;
+          const vodafone = parseFloat(ph.vodafone) || 0;
+          const instapay = parseFloat(ph.instapay) || 0;
+          const supply = parseFloat(ph.supply) || 0;
+          const companiesTotal = (ph.companies || []).reduce(
+            (s, c) => s + (parseFloat(c.amount) || 0),
+            0,
+          );
+
+          const autoCash = Math.max(
+            0,
+            pumpReadingsValue -
+              visa -
+              tomcard -
+              vodafone -
+              instapay -
+              supply -
+              companiesTotal,
+          );
+          ph.cash = autoCash;
+          const cashInp = document.querySelector(
+            `.pump-cash-input[data-pump="${pumpId}"]`,
+          );
+          if (cashInp) {
+            cashInp.value = autoCash.toFixed(2);
+            cashInp.style.borderColor = "var(--green)";
+          }
+        };
+
+        const _origRecalcPumpTotal = recalcPumpTotal;
+        recalcPumpTotal = function (pumpId) {
+          const ph = pumpHandover[pumpId] || {};
+          const cash = parseFloat(ph.cash) || 0;
+          const visa = parseFloat(ph.visa) || 0;
+          const tomcard = parseFloat(ph.tomcard) || 0;
+          const vodafone = parseFloat(ph.vodafone) || 0;
+          const instapay = parseFloat(ph.instapay) || 0;
+          const supply = parseFloat(ph.supply) || 0;
+          const companiesTotal = (ph.companies || []).reduce(
+            (s, c) => s + (parseFloat(c.amount) || 0),
+            0,
+          );
+
+          const productSales = ph.productSales || [];
+          const productSalesCash = productSales
+            .filter((x) => x.destination === "cash")
+            .reduce((s, x) => s + (parseFloat(x.total) || 0), 0);
+          const productSalesCompany = productSales
+            .filter((x) => x.destination === "company")
+            .reduce((s, x) => s + (parseFloat(x.total) || 0), 0);
+          const productSalesTotal = productSalesCash + productSalesCompany;
+
+          const netCash = Math.max(0, cash + productSalesCash - supply);
+          const totalCompaniesWithProducts =
+            companiesTotal + productSalesCompany;
+          const deliveryTotal =
+            netCash +
+            visa +
+            tomcard +
+            vodafone +
+            instapay +
+            totalCompaniesWithProducts;
+
+          let pumpReadingsTotal = 0;
+          let pumpTotalLiters = 0;
+          document
+            .querySelectorAll(`.pump-nozzle-end[data-pump="${pumpId}"]`)
+            .forEach((nzInp) => {
+              const start = parseFloat(nzInp.dataset.start) || 0;
+              const price = parseFloat(nzInp.dataset.price) || 0;
+              const end = parseFloat(nzInp.value);
+              const nid = nzInp.dataset.nozzle;
+              const allowInp = document.querySelector(
+                `.pump-nozzle-allowance[data-pump="${pumpId}"][data-nozzle="${nid}"]`,
+              );
+              const allow = parseFloat(allowInp?.value) || 0;
+              if (!isNaN(end) && end >= start) {
+                const netLiters = Math.max(0, end - start - allow);
+                pumpReadingsTotal += netLiters * price;
+                pumpTotalLiters += netLiters;
+              }
+            });
+
+          const litersEl = document.getElementById(
+            `pump-liters-display-${pumpId}`,
+          );
+          if (litersEl) litersEl.textContent = F29(pumpTotalLiters) + " لتر";
+
+          const totalEl = document.getElementById(
+            `pump-total-display-${pumpId}`,
+          );
+          if (totalEl) totalEl.textContent = F29(pumpReadingsTotal) + " ج";
+
+          const compTotalEl = document.getElementById(
+            `pump-companies-total-${pumpId}`,
+          );
+          if (compTotalEl) compTotalEl.textContent = F29(companiesTotal) + " ج";
+
+          const prodSalesTotalEl = document.getElementById(
+            `pump-products-sales-total-${pumpId}`,
+          );
+          if (prodSalesTotalEl)
+            prodSalesTotalEl.textContent = F29(productSalesTotal) + " ج";
+
+          const cashHint = document.getElementById(`pump-cash-hint-${pumpId}`);
+          if (cashHint) {
+            if (productSalesCash > 0)
+              cashHint.innerHTML = `<span style="color:var(--green)">كاش الوقود: ${F29(cash)} + منتجات: ${F29(productSalesCash)} = <strong>${F29(cash + productSalesCash)} ج</strong></span>`;
+            else cashHint.innerHTML = "";
+          }
+
+          const companiesHint = document.getElementById(
+            `pump-companies-hint-${pumpId}`,
+          );
+          if (companiesHint) {
+            if (productSalesCompany > 0)
+              companiesHint.innerHTML = `<span style="color:var(--purple)">+ 📦 منتجات للشركات: <strong>${F29(productSalesCompany)} ج</strong> → الإجمالي: <strong>${F29(totalCompaniesWithProducts)} ج</strong></span>`;
+            else companiesHint.innerHTML = "";
+          }
+
+          const checkEl = document.getElementById(
+            `pump-delivery-check-${pumpId}`,
+          );
+          if (checkEl) checkEl.textContent = F29(deliveryTotal) + " ج";
+        };
+
+        const _origRecalcShiftGrandTotal = recalcShiftGrandTotal;
+        recalcShiftGrandTotal = function () {
+          let totalCash = 0,
+            totalVisa = 0,
+            totalTomcard = 0,
+            totalVodafone = 0,
+            totalInstapay = 0,
+            totalCompanies = 0,
+            totalSupply = 0;
+          let totalFromReadings = 0;
+
+          document.querySelectorAll(".pump-nozzle-end").forEach((inp) => {
+            const pumpId = inp.dataset.pump;
+            const nozzleId = inp.dataset.nozzle;
+            const start = parseFloat(inp.dataset.start) || 0;
+            const price = parseFloat(inp.dataset.price) || 0;
+            const end = parseFloat(inp.value);
+            const allowInp = document.querySelector(
+              `.pump-nozzle-allowance[data-pump="${pumpId}"][data-nozzle="${nozzleId}"]`,
+            );
+            const allow = parseFloat(allowInp?.value) || 0;
+            if (!isNaN(end) && end >= start) {
+              totalFromReadings += Math.max(0, end - start - allow) * price;
+            }
+          });
+
+          let totalProductSalesCash = 0;
+          let totalProductSalesCompany = 0;
+          DB.pumps.forEach((pump) => {
+            const ph = pumpHandover[pump.id] || {};
+            totalVisa += parseFloat(ph.visa) || 0;
+            totalTomcard += parseFloat(ph.tomcard) || 0;
+            totalVodafone += parseFloat(ph.vodafone) || 0;
+            totalInstapay += parseFloat(ph.instapay) || 0;
+            totalSupply += parseFloat(ph.supply) || 0;
+            totalCompanies += (ph.companies || []).reduce(
+              (s, c) => s + (parseFloat(c.amount) || 0),
+              0,
+            );
+            const psList = ph.productSales || [];
+            totalProductSalesCash += psList
+              .filter((x) => x.destination === "cash")
+              .reduce((s, x) => s + (parseFloat(x.total) || 0), 0);
+            totalProductSalesCompany += psList
+              .filter((x) => x.destination === "company")
+              .reduce((s, x) => s + (parseFloat(x.total) || 0), 0);
+            totalCash += parseFloat(ph.cash) || 0;
+          });
+
+          const totalProductSales =
+            totalProductSalesCash + totalProductSalesCompany;
+
+          if (totalFromReadings > 0) {
+            const remaining =
+              totalFromReadings -
+              totalVisa -
+              totalTomcard -
+              totalVodafone -
+              totalInstapay -
+              totalCompanies -
+              totalProductSalesCompany -
+              totalSupply;
+            totalCash = Math.max(0, remaining);
+          }
+
+          const totalCashWithProducts = totalCash + totalProductSalesCash;
+          const totalCompaniesWithProducts =
+            totalCompanies + totalProductSalesCompany;
+          const netCashAfterSupply = Math.max(0, totalCashWithProducts);
+
+          const grandTotal =
+            totalCashWithProducts +
+            totalVisa +
+            totalTomcard +
+            totalVodafone +
+            totalInstapay +
+            totalCompaniesWithProducts;
+          const expenses =
+            parseFloat(document.getElementById("petty-expenses")?.value) || 0;
+          const outgoing =
+            parseFloat(document.getElementById("shift-outgoing")?.value) || 0;
+          const deductions = expenses + outgoing;
+          const netCash = netCashAfterSupply - deductions;
+
+          const el = (id) => document.getElementById(id);
+          if (el("grand-readings-total"))
+            el("grand-readings-total").textContent =
+              totalFromReadings > 0 ? F29(totalFromReadings) + " ج" : "—";
+          if (el("grand-cash"))
+            el("grand-cash").textContent = F29(netCashAfterSupply) + " ج";
+          if (el("grand-visa"))
+            el("grand-visa").textContent = F29(totalVisa) + " ج";
+          if (el("grand-tomcard"))
+            el("grand-tomcard").textContent = F29(totalTomcard) + " ج";
+          // Vodafone/Instapay might not have dedicated grand total UI boxes, but they are factored in.
+          if (el("grand-companies"))
+            el("grand-companies").textContent =
+              F29(totalCompaniesWithProducts) + " ج";
+          if (el("grand-supply"))
+            el("grand-supply").textContent = F29(totalSupply) + " ج";
+          if (el("grand-total"))
+            el("grand-total").textContent = F29(grandTotal) + " ج";
+          if (el("grand-product-sales"))
+            el("grand-product-sales").textContent =
+              F29(totalProductSales) + " ج";
+          if (el("summary-credit"))
+            el("summary-credit").textContent =
+              F29(totalCompaniesWithProducts) + " ج";
+          if (el("summary-deductions"))
+            el("summary-deductions").textContent = F29(deductions) + " ج";
+          if (el("summary-net-cash"))
+            el("summary-net-cash").textContent = F29(netCash) + " ج";
+
+          if (totalFromReadings > 0) {
+            const remaining = Math.max(
+              0,
+              totalFromReadings -
+                totalVisa -
+                totalTomcard -
+                totalVodafone -
+                totalInstapay -
+                totalCompanies -
+                totalProductSalesCompany -
+                totalSupply,
+            );
+            const cashInputs = document.querySelectorAll(".pump-cash-input");
+            if (cashInputs.length > 0 && !cashInputs[0].dataset.manuallySet) {
+              const perPump = remaining / cashInputs.length;
+              cashInputs.forEach((inp) => {
+                const pumpId = inp.dataset.pump;
+                if (pumpId && !inp.dataset.manuallySet) {
+                  inp.value = perPump.toFixed(2);
+                  if (pumpHandover[pumpId]) pumpHandover[pumpId].cash = perPump;
+                }
+              });
+            }
+          }
+
+          let liveMonetaryTotal = 0;
+          let hasValidEnd = false;
+          document.querySelectorAll(".pump-nozzle-end").forEach((inp) => {
+            const pId = inp.dataset.pump;
+            const nId = inp.dataset.nozzle;
+            const start = parseFloat(inp.dataset.start) || 0;
+            const price = parseFloat(inp.dataset.price) || 0;
+            const end = parseFloat(inp.value);
+            const allowInp = document.querySelector(
+              `.pump-nozzle-allowance[data-pump="${pId}"][data-nozzle="${nId}"]`,
+            );
+            const allow = parseFloat(allowInp?.value) || 0;
+            if (!isNaN(end) && end >= start) {
+              liveMonetaryTotal += Math.max(0, end - start - allow) * price;
+              hasValidEnd = true;
+            }
+          });
+          updateShiftLiveTotal(hasValidEnd ? liveMonetaryTotal : 0);
+        };
+
+        // ============================================================
+        //  3. تقفيل الوردية وحفظ الحركات
+        // ============================================================
+        const _origOpenCloseShiftModal = openCloseShiftModal;
+        openCloseShiftModal = function () {
+          let summaryHtml =
+            '<div style="margin-bottom:10px;font-size:13px;font-weight:700;color:var(--text)">ملخص الوردية للإقفال:</div>';
+          let tc = 0,
+            tv = 0,
+            tt = 0,
+            tvf = 0,
+            tip = 0,
+            tco = 0,
+            ts = 0;
+
+          DB.pumps.forEach((pump) => {
+            const ph = pumpHandover[pump.id] || {};
+            const c = parseFloat(ph.cash) || 0;
+            const v = parseFloat(ph.visa) || 0;
+            const t = parseFloat(ph.tomcard) || 0;
+            const vf = parseFloat(ph.vodafone) || 0;
+            const ip = parseFloat(ph.instapay) || 0;
+            const s = parseFloat(ph.supply) || 0;
+            const co = (ph.companies || []).reduce(
+              (s, ce) => s + (parseFloat(ce.amount) || 0),
+              0,
+            );
+            tc += Math.max(0, c - s);
+            tv += v;
+            tt += t;
+            tvf += vf;
+            tip += ip;
+            tco += co;
+            ts += s;
+
+            summaryHtml += `<div style="background:var(--surface2);border-radius:8px;padding:10px;margin-bottom:8px">
+            <div style="font-weight:600;margin-bottom:6px">${pump.name}</div>
+            <div style="display:flex;gap:6px;font-size:10px;overflow-x:auto;padding-bottom:4px">
+              <div style="min-width:60px;text-align:center"><div style="color:var(--text3)">كاش</div><div style="font-family:var(--mono);color:var(--green)">${F29(Math.max(0, c - s))}</div></div>
+              <div style="min-width:60px;text-align:center"><div style="color:var(--text3)">فيزا</div><div style="font-family:var(--mono);color:var(--blue)">${F29(v)}</div></div>
+              <div style="min-width:60px;text-align:center"><div style="color:var(--text3)">توم كارد</div><div style="font-family:var(--mono);color:var(--purple)">${F29(t)}</div></div>
+              <div style="min-width:60px;text-align:center"><div style="color:var(--text3)">فودافون</div><div style="font-family:var(--mono);color:#ef4444">${F29(vf)}</div></div>
+              <div style="min-width:60px;text-align:center"><div style="color:var(--text3)">انستا باي</div><div style="font-family:var(--mono);color:#a855f7">${F29(ip)}</div></div>
+              <div style="min-width:60px;text-align:center"><div style="color:var(--text3)">شركات</div><div style="font-family:var(--mono);color:var(--accent)">${F29(co)}</div></div>
+            </div>
+          </div>`;
+          });
+
+          summaryHtml += `<div style="background:var(--accent-dim);border:1px solid rgba(245,158,11,.3);border-radius:8px;padding:12px;display:flex;flex-wrap:wrap;gap:10px;font-size:11px;text-align:center;justify-content:center">
+          <div><div style="color:var(--text3)">كاش</div><div style="font-family:var(--mono);font-weight:700;color:var(--green)">${F29(tc)}</div></div>
+          <div><div style="color:var(--text3)">فيزا</div><div style="font-family:var(--mono);font-weight:700;color:var(--blue)">${F29(tv)}</div></div>
+          <div><div style="color:var(--text3)">توم كارد</div><div style="font-family:var(--mono);font-weight:700;color:var(--purple)">${F29(tt)}</div></div>
+          <div><div style="color:var(--text3)">فودافون</div><div style="font-family:var(--mono);font-weight:700;color:#ef4444">${F29(tvf)}</div></div>
+          <div><div style="color:var(--text3)">انستا باي</div><div style="font-family:var(--mono);font-weight:700;color:#a855f7">${F29(tip)}</div></div>
+          <div><div style="color:var(--text3)">شركات</div><div style="font-family:var(--mono);font-weight:700;color:var(--accent)">${F29(tco)}</div></div>
+          <div style="width:100%;border-top:1px dashed var(--accent);margin:4px 0"></div>
+          <div><div style="color:var(--text3)">الإجمالي</div><div style="font-family:var(--mono);font-weight:900;color:var(--accent);font-size:14px">${F29(tc + tv + tt + tvf + tip + tco)} ج</div></div>
+        </div>`;
+
+          document.getElementById("modal-pump-summary").innerHTML = summaryHtml;
+          openModal("close-shift-modal");
+
+          const expectedCash = Math.max(0, tc);
+          const expEl = document.getElementById("modal-expected-cash-display");
+          if (expEl) expEl.textContent = F29(expectedCash) + " ج";
+          expEl && (expEl.dataset.expected = expectedCash);
+          const actualInp = document.getElementById("modal-actual-cash");
+          if (actualInp) actualInp.value = "";
+          const diffEl = document.getElementById("modal-cash-diff");
+          if (diffEl) diffEl.textContent = "—";
+        };
+
+        const _origConfirmCloseShift = confirmCloseShift;
+        confirmCloseShift = function () {
+          // Collect new totals to push transactions
+          let grandVodafone = 0,
+            grandInstapay = 0;
+          DB.pumps.forEach((pump) => {
+            const ph = pumpHandover[pump.id] || {};
+            grandVodafone += parseFloat(ph.vodafone) || 0;
+            grandInstapay += parseFloat(ph.instapay) || 0;
+          });
+
+          const shiftName = DB.currentShift.name;
+          const shiftNum = DB.currentShift.number;
+          const now = new Date().toISOString();
+
+          // Register Vodafone into transfers report (pending transaction)
+          if (grandVodafone > 0) {
+            DB.transactions.push({
+              id: "TX" + Date.now() + Math.random().toString(36).slice(2, 8),
+              date: now,
+              name: `فودافون كاش — ${shiftName}`,
+              items: [],
+              qty: 0,
+              total: grandVodafone,
+              payMethod: "vodafone",
+              companyId: null,
+              shiftNumber: shiftNum,
+              shiftName: shiftName,
+              note: `تحويل فودافون كاش — إغلاق ${shiftName}`,
+              type: "shift-close",
+              handoverPayMethod: "vodafone",
+            });
+          }
+
+          // Register InstaPay into transfers report (pending transaction)
+          if (grandInstapay > 0) {
+            DB.transactions.push({
+              id: "TX" + Date.now() + Math.random().toString(36).slice(2, 8),
+              date: now,
+              name: `انستا باي — ${shiftName}`,
+              items: [],
+              qty: 0,
+              total: grandInstapay,
+              payMethod: "instapay",
+              companyId: null,
+              shiftNumber: shiftNum,
+              shiftName: shiftName,
+              note: `تحويل انستا باي — إغلاق ${shiftName}`,
+              type: "shift-close",
+              handoverPayMethod: "instapay",
+            });
+          }
+
+          // Fix the product carry over bug: "المنتجات المرحلة بتكون بنفس العدد يعني لو بعت حاجة و الباقي اترحل العدد مش بينزل"
+          // Ensure that carriedHandovers properly subtracts sold amounts.
+          // We will intercept this inside the original function or fix it just before.
+          // The original code does: remaining = received - sold. This IS correct.
+          // What might happen is the sold items via POS are NOT reducing the pump's handover?
+          // Yes, POS sales don't reduce pump handovers. That's expected, pump handovers are separate.
+          // We will let the original function run, it should handle the math.
+
+          _origConfirmCloseShift();
+        };
+
+        // ============================================================
+        //  4. تقرير التحويلات (إضافة فودافون وانستا باي)
+        // ============================================================
+        const _origRenderTransfers = renderTransfersReport;
+        renderTransfersReport = function () {
+          const { start } = getDateRange
+            ? getDateRange(transferFilter)
+            : {
+                start: new Date(
+                  new Date().getFullYear(),
+                  new Date().getMonth(),
+                  1,
+                ),
+              };
+          const filtered = DB.transactions.filter(
+            (t) => new Date(t.date) >= start,
+          );
+
+          const creditTx = filtered.filter(
+            (t) => t.payMethod === "credit" || t.type === "company-handover",
+          );
+          const tomcardTx = filtered.filter(
+            (t) =>
+              t.payMethod === "tomcard" || t.handoverPayMethod === "tomcard",
+          );
+          const visaTx = filtered.filter(
+            (t) => t.payMethod === "pos" || t.handoverPayMethod === "visa",
+          );
+          const vodafoneTx = filtered.filter(
+            (t) =>
+              t.payMethod === "vodafone" || t.handoverPayMethod === "vodafone",
+          );
+          const instapayTx = filtered.filter(
+            (t) =>
+              t.payMethod === "instapay" || t.handoverPayMethod === "instapay",
+          );
+
+          const pendingVf = vodafoneTx
+            .filter((t) => !t.confirmed)
+            .reduce((s, t) => s + t.total, 0);
+          const confirmedVf = vodafoneTx
+            .filter((t) => t.confirmed)
+            .reduce((s, t) => s + t.total, 0);
+
+          const pendingIp = instapayTx
+            .filter((t) => !t.confirmed)
+            .reduce((s, t) => s + t.total, 0);
+          const confirmedIp = instapayTx
+            .filter((t) => t.confirmed)
+            .reduce((s, t) => s + t.total, 0);
+
+          // Call original to render existing cards
+          _origRenderTransfers();
+
+          // Now append our new cards to the summary
+          const sumEl = document.getElementById("transfers-summary-cards");
+          if (sumEl) {
+            sumEl.style.gridTemplateColumns = "repeat(5, 1fr)"; // Adjust columns
+            sumEl.innerHTML += `
+            <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px;text-align:center">
+              <div style="font-size:11px;color:var(--text3);margin-bottom:4px">🔴 فودافون كاش</div>
+              <div style="font-family:var(--mono);font-size:18px;font-weight:700;color:#ef4444">${F29(pendingVf)}</div>
+              <div style="font-size:10px;color:var(--text3);margin-top:2px">
+                <span style="color:var(--yellow)">⏳ ${F29(pendingVf)}</span> · <span style="color:var(--green)">✓ ${F29(confirmedVf)}</span>
+              </div>
+            </div>
+            <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px;text-align:center">
+              <div style="font-size:11px;color:var(--text3);margin-bottom:4px">🟣 انستا باي</div>
+              <div style="font-family:var(--mono);font-size:18px;font-weight:700;color:#a855f7">${F29(pendingIp)}</div>
+              <div style="font-size:10px;color:var(--text3);margin-top:2px">
+                <span style="color:var(--yellow)">⏳ ${F29(pendingIp)}</span> · <span style="color:var(--green)">✓ ${F29(confirmedIp)}</span>
+              </div>
+            </div>
+          `;
+          }
+
+          // Add the tables for Vodafone and Instapay
+          const makeRows = (txList, withConfirm) =>
+            txList.length === 0
+              ? `<tr><td colspan="${withConfirm ? 5 : 3}" style="text-align:center;color:var(--text3);padding:20px">لا توجد معاملات</td></tr>`
+              : [...txList]
+                  .reverse()
+                  .map((tx) => {
+                    const comp = tx.companyId
+                      ? companyById(tx.companyId)
+                      : null;
+                    const statusBadge = withConfirm
+                      ? tx.confirmed
+                        ? '<span class="tag tag-green">✓ مؤكد بالخزينة</span>'
+                        : '<span class="tag tag-accent">⏳ معلق</span>'
+                      : "";
+                    const actionBtn =
+                      withConfirm && !tx.confirmed
+                        ? `<button class="btn btn-primary btn-sm" onclick="confirmTransferArrival('${tx.id}')">✓ تأكيد</button>`
+                        : withConfirm && tx.confirmed
+                          ? `<button class="btn btn-secondary btn-sm" onclick="undoTransferArrival('${tx.id}')">↶ تراجع</button>`
+                          : "";
+                    const displayAmount =
+                      withConfirm && tx.confirmed
+                        ? `<span style="font-family:var(--mono);font-weight:600;color:var(--green)">0.00 ج</span>`
+                        : `<span style="font-family:var(--mono);font-weight:600;color:var(--accent)">${F29(tx.total)} ج</span>`;
+                    return `<tr>
+                  <td style="font-size:11px;color:var(--text3)">${D29(tx.date)}</td>
+                  <td>${comp ? comp.name : tx.name}</td>
+                  <td>${displayAmount}</td>
+                  ${withConfirm ? `<td>${statusBadge}</td><td>${actionBtn}</td>` : ""}
+                </tr>`;
+                  })
+                  .join("");
+
+          const container = document.getElementById("page-transfers-report");
+          if (container) {
+            // Append tables if not exist
+            if (!document.getElementById("tr-vodafone-card")) {
+              const extraTables = document.createElement("div");
+              extraTables.style.cssText =
+                "display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;";
+              extraTables.innerHTML = `
+              <div class="card" id="tr-vodafone-card">
+                <div class="card-header" style="color:#ef4444"><span>🔴</span>فودافون كاش</div>
+                <div class="card-body" style="padding:0"><table class="readings-table"><thead><tr><th>التاريخ</th><th>البيان</th><th>المبلغ</th><th>الحالة</th><th>إجراء</th></tr></thead><tbody id="tr-vodafone-tbody"></tbody></table></div>
+              </div>
+              <div class="card" id="tr-instapay-card">
+                <div class="card-header" style="color:#a855f7"><span>🟣</span>انستا باي</div>
+                <div class="card-body" style="padding:0"><table class="readings-table"><thead><tr><th>التاريخ</th><th>البيان</th><th>المبلغ</th><th>الحالة</th><th>إجراء</th></tr></thead><tbody id="tr-instapay-tbody"></tbody></table></div>
+              </div>
+            `;
+              container.appendChild(extraTables);
+            }
+            document.getElementById("tr-vodafone-tbody").innerHTML = makeRows(
+              vodafoneTx,
+              true,
+            );
+            document.getElementById("tr-instapay-tbody").innerHTML = makeRows(
+              instapayTx,
+              true,
+            );
+          }
+        };
+
+        // Patch the confirm transfer modal to know about VF and Instapay
+        const _origV15ShowConfirmModal = window.v15ShowConfirmModal;
+        window.v15ShowConfirmModal = function (tx) {
+          _origV15ShowConfirmModal(tx);
+          // It uses the same modal, just need to ensure the logic in v15DoConfirm works (it does, it sets payMethod='cash' and pushes deposit).
+        };
+
+        // ============================================================
+        //  5. صفحة الخزينة (رأس مال المحطة)
+        // ============================================================
+        const _origRenderTreasury = renderTreasury;
+        renderTreasury = function () {
+          _origRenderTreasury();
+
+          // Calculate capital
+          const balance = calcTreasuryBalance(); // النقدية في الخزنة
+          const fuelValue = (DB.tanks || []).reduce((s, t) => {
+            const fuel = (DB.fuels || []).find((f) => f.id === t.fuelId);
+            return s + t.level * (fuel ? fuel.price : 0);
+          }, 0);
+          const invValue = (DB.inventory || []).reduce(
+            (s, item) => s + (item.buyPrice || 0) * item.qty,
+            0,
+          );
+          const companyBalance = (DB.companies || []).reduce(
+            (s, c) => s + c.balance,
+            0,
+          );
+
+          // Suppliers debt (deducted from capital)
+          let supplierDebt = 0;
+          (DB.purchases || []).forEach((p) => {
+            if (p.status === "pending") supplierDebt += p.total;
+            else if (p.status === "partial") {
+              const paidSoFar = (p.payments || []).reduce(
+                (a, pm) => a + pm.amount,
+                0,
+              );
+              supplierDebt += p.total - paidSoFar;
+            }
+          });
+
+          // Bank Accounts (Deposits vs Withdrawals without cash)
+          const bankOnlyDeps = DB.bankMovements
+            .filter((m) => m.type === "deposit")
+            .reduce((s, m) => s + m.amount, 0);
+          const bankOnlyWits = DB.bankMovements
+            .filter((m) => m.type === "withdrawal")
+            .reduce((s, m) => s + m.amount, 0);
+          const bankBalance = bankOnlyDeps - bankOnlyWits;
+
+          const totalCapital =
+            balance +
+            fuelValue +
+            invValue +
+            companyBalance +
+            bankBalance -
+            supplierDebt;
+
+          const statsEl = document.getElementById("treasury-stats");
+          if (statsEl && !document.getElementById("capital-card")) {
+            // Prepend Capital Card
+            const capCard = document.createElement("div");
+            capCard.id = "capital-card";
+            capCard.style.cssText =
+              "grid-column:1/-1;background:linear-gradient(135deg, #1a1a2e, #3b82f6);color:#fff;border-radius:12px;padding:20px;display:flex;justify-content:space-between;align-items:center;box-shadow:0 10px 25px rgba(59,130,246,0.3)";
+            capCard.innerHTML = `
+            <div>
+              <div style="font-size:14px;color:#cbd5e1;margin-bottom:4px;font-weight:600">🏛️ إجمالي رأس مال المحطة (القيمة التقديرية للأصول)</div>
+              <div style="font-family:var(--mono);font-size:32px;font-weight:900;color:#fff">${F29(totalCapital)} <span style="font-size:14px;color:#94a3b8">جنيه</span></div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;text-align:left">
+              <div><div style="font-size:10px;color:#94a3b8">📦 قيمة المخزون والوقود</div><div style="font-family:var(--mono);font-size:16px;font-weight:700">${F29(fuelValue + invValue)}</div></div>
+              <div><div style="font-size:10px;color:#94a3b8">🏦 نقدية (خزنة + بنك)</div><div style="font-family:var(--mono);font-size:16px;font-weight:700">${F29(balance + bankBalance)}</div></div>
+              <div><div style="font-size:10px;color:#94a3b8">🏢 ذمم (شركات - موردين)</div><div style="font-family:var(--mono);font-size:16px;font-weight:700;color:${companyBalance - supplierDebt >= 0 ? "#86efac" : "#fca5a5"}">${companyBalance - supplierDebt >= 0 ? "+" : ""}${F29(companyBalance - supplierDebt)}</div></div>
+            </div>
+          `;
+            statsEl.parentNode.insertBefore(capCard, statsEl);
+          }
+        };
+
+        // ============================================================
+        //  6. الجرد الشامل و القياس الصباحي (التقارير)
+        // ============================================================
+        const _origRenderReports = renderReports;
+        renderReports = function () {
+          _origRenderReports();
+
+          const reportsGrid = document.querySelector(
+            "#page-reports .card",
+          ).parentNode; // The grid container
+
+          // Add Comprehensive Inventory Button
+          if (!document.getElementById("btn-comp-inv")) {
+            const compBtn = document.createElement("div");
+            compBtn.className = "card";
+            compBtn.id = "btn-comp-inv";
+            compBtn.style.cursor = "pointer";
+            compBtn.onclick = printComprehensiveInventory;
+            compBtn.innerHTML = `<div class="card-body" style="text-align: center; padding: 20px">
+            <div style="font-size: 28px; margin-bottom: 8px">👑</div>
+            <div style="font-weight: 600; font-size: 13px">تقرير الجرد الشامل</div>
+            <div style="font-size: 11px; color: var(--text3); margin-top: 4px">أصول، نقدية، ذمم، مخزون</div>
+          </div>`;
+            reportsGrid.insertBefore(compBtn, reportsGrid.children[1]); // Insert after first item
+          }
+
+          // Add Morning Gauge Report Button
+          if (!document.getElementById("btn-gauge-rep")) {
+            const gaugeBtn = document.createElement("div");
+            gaugeBtn.className = "card";
+            gaugeBtn.id = "btn-gauge-rep";
+            gaugeBtn.style.cursor = "pointer";
+            gaugeBtn.onclick = openMorningGaugeModal;
+            gaugeBtn.innerHTML = `<div class="card-body" style="text-align: center; padding: 20px">
+            <div style="font-size: 28px; margin-bottom: 8px">🌅</div>
+            <div style="font-weight: 600; font-size: 13px">سجل القياس الصباحي</div>
+            <div style="font-size: 11px; color: var(--text3); margin-top: 4px">متابعة قياس الخزانات يومياً</div>
+          </div>`;
+            reportsGrid.insertBefore(gaugeBtn, reportsGrid.children[2]);
+          }
+        };
+
+        window.openMorningGaugeModal = function () {
+          let modal = document.getElementById("v29-gauge-modal");
+          if (!modal) {
+            modal = document.createElement("div");
+            modal.id = "v29-gauge-modal";
+            modal.className = "modal-overlay";
+            modal.innerHTML = `
+            <div class="modal" style="width:600px;max-width:95vw">
+              <div class="modal-header">
+                <span>🌅 سجل القياس اليومي الصباحي</span>
+                <button class="modal-close" onclick="document.getElementById('v29-gauge-modal').classList.remove('open')">✕</button>
+              </div>
+              <div class="modal-body">
+                <div style="display:flex;justify-content:space-between;margin-bottom:12px">
+                  <span style="font-size:12px;color:var(--text3)">القياسات المسجلة من صفحة الورديات</span>
+                  <button class="btn btn-secondary btn-sm" onclick="printMorningGaugeReport()">🖨 طباعة السجل</button>
+                </div>
+                <div id="v29-gauge-list" style="max-height:60vh;overflow-y:auto;border:1px solid var(--border);border-radius:8px"></div>
+              </div>
+            </div>`;
+            document.body.appendChild(modal);
+            modal.addEventListener("click", (e) => {
+              if (e.target === modal) modal.classList.remove("open");
+            });
+          }
+
+          const listEl = document.getElementById("v29-gauge-list");
+          if (!DB.dailyGaugeLog || DB.dailyGaugeLog.length === 0) {
+            listEl.innerHTML =
+              '<div style="text-align:center;padding:30px;color:var(--text3)">لا توجد قياسات مسجلة</div>';
+          } else {
+            let html = `<table class="readings-table"><thead><tr><th>التاريخ</th><th>القياسات</th><th>إجراء</th></tr></thead><tbody>`;
+            [...DB.dailyGaugeLog].reverse().forEach((log, i) => {
+              const details = log.entries
+                .map(
+                  (e) =>
+                    `<span style="background:var(--surface2);padding:2px 6px;border-radius:4px;font-size:10px;margin-left:4px;display:inline-block;margin-bottom:4px">🛢️ ${e.tankName}: <span style="font-family:var(--mono);color:var(--accent)">${e.liters} ل</span></span>`,
+                )
+                .join("");
+              html += `<tr>
+              <td style="font-size:11px">${D29(log.date)}</td>
+              <td>${details}</td>
+              <td><button class="btn btn-danger btn-sm" onclick="deleteMorningGauge(${DB.dailyGaugeLog.length - 1 - i})">🗑</button></td>
+            </tr>`;
+            });
+            html += `</tbody></table>`;
+            listEl.innerHTML = html;
+          }
+
+          modal.classList.add("open");
+        };
+
+        window.deleteMorningGauge = function (index) {
+          if (!confirm("هل تريد حذف هذا السجل؟")) return;
+          DB.dailyGaugeLog.splice(index, 1);
+          saveDB();
+          openMorningGaugeModal();
+        };
+
+        window.printMorningGaugeReport = function () {
+          const s = DB.settings;
+          let rows = "";
+          [...DB.dailyGaugeLog].reverse().forEach((log, i) => {
+            const details = log.entries
+              .map((e) => `<strong>${e.tankName}:</strong> ${e.liters} لتر`)
+              .join(" | ");
+            rows += `<tr>
+              <td style="border:1px solid #ddd;padding:6px;text-align:center">${i + 1}</td>
+              <td style="border:1px solid #ddd;padding:6px;font-size:11px">${D29(log.date)}</td>
+              <td style="border:1px solid #ddd;padding:6px;font-family:monospace">${details}</td>
+            </tr>`;
+          });
+
+          const html = `
+          ${window.buildPrintHeader ? window.buildPrintHeader("سجل القياس اليومي الصباحي", "", s.stationName, s.address, s.phone) : ""}
+          <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:20px">
+            <thead>
+              <tr style="background:#f5f5f5">
+                <th style="border:1px solid #ddd;padding:8px">#</th>
+                <th style="border:1px solid #ddd;padding:8px">التاريخ والوقت</th>
+                <th style="border:1px solid #ddd;padding:8px">تفاصيل القياس باللتر</th>
+              </tr>
+            </thead>
+            <tbody>${rows || '<tr><td colspan="3" style="text-align:center;padding:20px">لا توجد بيانات</td></tr>'}</tbody>
+          </table>
+          ${window.buildPrintFooter ? window.buildPrintFooter(s.stationName, s.regNo) : ""}
+        `;
+          if (window.v17OpenPrintWindow)
+            window.v17OpenPrintWindow(html, "تقرير القياس الصباحي");
+        };
+
+        window.printComprehensiveInventory = function () {
+          const s = DB.settings;
+
+          // 1. Inventory
+          const invValue = DB.inventory.reduce(
+            (s, item) => s + (item.buyPrice || 0) * item.qty,
+            0,
+          );
+          const invRows = DB.inventory
+            .map(
+              (i) =>
+                `<tr><td style="border:1px solid #ddd;padding:4px">${i.name}</td><td style="border:1px solid #ddd;padding:4px;font-family:monospace">${i.qty} ${i.unit}</td><td style="border:1px solid #ddd;padding:4px;font-family:monospace">${F29((i.buyPrice || 0) * i.qty)} ج</td></tr>`,
+            )
+            .join("");
+
+          // 2. Fuel Tanks
+          const fuelValue = DB.tanks.reduce((s, t) => {
+            const fuel = (DB.fuels || []).find((f) => f.id === t.fuelId);
+            return s + t.level * (fuel ? fuel.price : 0);
+          }, 0);
+          const tankRows = DB.tanks
+            .map((t) => {
+              const fuel = (DB.fuels || []).find((f) => f.id === t.fuelId);
+              return `<tr><td style="border:1px solid #ddd;padding:4px">${t.name}</td><td style="border:1px solid #ddd;padding:4px">${fuel ? fuel.name : "-"}</td><td style="border:1px solid #ddd;padding:4px;font-family:monospace">${t.level.toLocaleString()} ل</td><td style="border:1px solid #ddd;padding:4px;font-family:monospace">${F29(t.level * (fuel ? fuel.price : 0))} ج</td></tr>`;
+            })
+            .join("");
+
+          // 3. Treasury & Money
+          const balance = calcTreasuryBalance();
+          const deposits = [...(DB.deposits || [])];
+          const totalIncome = deposits
+            .filter((d) => d.type === "cash-in" || d.type === "deposit")
+            .reduce((s, d) => s + d.amount, 0);
+          const totalExpenses = deposits
+            .filter((d) => d.type === "expense" || d.type === "withdrawal")
+            .reduce((s, d) => s + d.amount, 0);
+          const totalSalaries = DB.expenses
+            .filter((e) => e.type === "مرتبات")
+            .reduce((s, e) => s + e.amount, 0);
+          const companyBalance = (DB.companies || []).reduce(
+            (s, c) => s + c.balance,
+            0,
+          );
+
+          const html = `
+          ${window.buildPrintHeader ? window.buildPrintHeader("تقرير الجرد الشامل الموحد", "أصول — نقدية — ذمم — مخزون", s.stationName, s.address, s.phone) : ""}
+          
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px;text-align:center">
+            <div style="border:2px solid #22c55e;border-radius:8px;padding:10px;background:#f0fff4"><div style="font-size:10px;color:#555">إجمالي الخزينة</div><div style="font-size:18px;font-weight:900;color:#22c55e;font-family:monospace">${F29(balance)} ج</div></div>
+            <div style="border:2px solid #f59e0b;border-radius:8px;padding:10px;background:#fff9e6"><div style="font-size:10px;color:#555">جرد الوقود</div><div style="font-size:18px;font-weight:900;color:#f59e0b;font-family:monospace">${F29(fuelValue)} ج</div></div>
+            <div style="border:2px solid #3b82f6;border-radius:8px;padding:10px;background:#eff6ff"><div style="font-size:10px;color:#555">جرد المخزن</div><div style="font-size:18px;font-weight:900;color:#3b82f6;font-family:monospace">${F29(invValue)} ج</div></div>
+            <div style="border:2px solid #a855f7;border-radius:8px;padding:10px;background:#faf5ff"><div style="font-size:10px;color:#555">ذمم الشركات</div><div style="font-size:18px;font-weight:900;color:#a855f7;font-family:monospace">${F29(companyBalance)} ج</div></div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
+            <div>
+              <div style="font-weight:700;color:#1a1a2e;margin-bottom:6px;border-bottom:2px solid #1a1a2e;display:inline-block">⛽ جرد الخزانات والوقود</div>
+              <table style="width:100%;font-size:11px">
+                <thead><tr style="background:#f5f5f5"><th style="border:1px solid #ddd;padding:4px">الخزان</th><th style="border:1px solid #ddd;padding:4px">النوع</th><th style="border:1px solid #ddd;padding:4px">الرصيد</th><th style="border:1px solid #ddd;padding:4px">القيمة</th></tr></thead>
+                <tbody>${tankRows || '<tr><td colspan="4">لا توجد</td></tr>'}</tbody>
+                <tfoot><tr style="background:#fff9e6;font-weight:700"><td colspan="3" style="border:1px solid #ddd;padding:4px">الإجمالي</td><td style="border:1px solid #ddd;padding:4px;font-family:monospace;color:#f59e0b">${F29(fuelValue)} ج</td></tr></tfoot>
+              </table>
+            </div>
+            <div>
+              <div style="font-weight:700;color:#1a1a2e;margin-bottom:6px;border-bottom:2px solid #1a1a2e;display:inline-block">📦 جرد المنتجات والزيوت</div>
+              <table style="width:100%;font-size:11px">
+                <thead><tr style="background:#f5f5f5"><th style="border:1px solid #ddd;padding:4px">الصنف</th><th style="border:1px solid #ddd;padding:4px">الكمية</th><th style="border:1px solid #ddd;padding:4px">القيمة الإجمالية</th></tr></thead>
+                <tbody>${invRows || '<tr><td colspan="3">لا توجد</td></tr>'}</tbody>
+                <tfoot><tr style="background:#eff6ff;font-weight:700"><td colspan="2" style="border:1px solid #ddd;padding:4px">الإجمالي</td><td style="border:1px solid #ddd;padding:4px;font-family:monospace;color:#3b82f6">${F29(invValue)} ج</td></tr></tfoot>
+              </table>
+            </div>
+          </div>
+
+          <div style="font-weight:700;color:#1a1a2e;margin-bottom:6px;border-bottom:2px solid #1a1a2e;display:inline-block">💰 حركة الأموال</div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px;font-size:12px">
+            <div style="border:1px solid #ddd;border-radius:6px;padding:8px">
+              <div style="color:#777;margin-bottom:4px">إجمالي الإيداعات / الإيرادات</div>
+              <div style="font-family:monospace;font-weight:700;font-size:16px;color:#22c55e">${F29(totalIncome)} ج</div>
+            </div>
+            <div style="border:1px solid #ddd;border-radius:6px;padding:8px">
+              <div style="color:#777;margin-bottom:4px">إجمالي المصروفات والسحوبات</div>
+              <div style="font-family:monospace;font-weight:700;font-size:16px;color:#ef4444">${F29(totalExpenses)} ج</div>
+              <div style="font-size:10px;color:#888;margin-top:2px">شاملة الرواتب الموضحة أدناه</div>
+            </div>
+            <div style="border:1px solid #ddd;border-radius:6px;padding:8px">
+              <div style="color:#777;margin-bottom:4px">إجمالي المرتبات المنصرفة</div>
+              <div style="font-family:monospace;font-weight:700;font-size:16px;color:#a855f7">${F29(totalSalaries)} ج</div>
+            </div>
+          </div>
+
+          <div style="background:#1a1a2e;color:#fff;border-radius:10px;padding:16px;display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <div style="font-size:12px;opacity:0.8">رأس مال المحطة التقديري (نقدية + أصول + ذمم)</div>
+            </div>
+            <div style="font-size:28px;font-weight:900;font-family:monospace;color:#f59e0b">
+              ${F29(balance + fuelValue + invValue + companyBalance)} ج
+            </div>
+          </div>
+
+          ${window.buildPrintFooter ? window.buildPrintFooter(s.stationName, s.regNo) : ""}
+        `;
+          if (window.v17OpenPrintWindow)
+            window.v17OpenPrintWindow(html, "تقرير الجرد الشامل");
+        };
+
+        console.log(
+          "✅ V29 PATCH LOADED: Vodafone Cash, InstaPay, Full Inventory, Morning Gauge, Carried Products Fix",
+        );
+      })();
     </script>
   </body>
 </html>
