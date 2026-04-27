@@ -26162,6 +26162,1183 @@ ${bodyHtml}
           "✅ V43 PATCH LOADED: Tank Levels Deduction on Shift Close & Restore on Reopen",
         );
       })();
+      // -----------------------------------
+      (function () {
+        "use strict";
+
+        const F44 = (n) =>
+          Number(n || 0).toLocaleString("en-US", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          });
+        const D44 = (iso) =>
+          iso
+            ? new Date(iso).toLocaleString("ar-EG", {
+                dateStyle: "short",
+                timeStyle: "short",
+              })
+            : "—";
+
+        // ── 1. تصنيف الموردين (أساسي / فرعي) ─────────────────────────────
+        // حقن حقل التصنيف في نافذة إضافة المورد
+        setTimeout(() => {
+          const supplierModalBody = document.querySelector(
+            "#add-supplier-modal .modal-body",
+          );
+          if (
+            supplierModalBody &&
+            !document.getElementById("supplier-class-input")
+          ) {
+            const classGroup = document.createElement("div");
+            classGroup.className = "form-group";
+            classGroup.innerHTML = `
+            <label class="form-label">تصنيف المورد</label>
+            <select class="form-input form-select" id="supplier-class-input">
+              <option value="main">⭐ مورد أساسي</option>
+              <option value="sub">🔄 مورد فرعي</option>
+            </select>
+          `;
+            supplierModalBody.insertBefore(
+              classGroup,
+              supplierModalBody.children[1],
+            ); // بعد حقل الاسم
+          }
+        }, 500);
+
+        // تعديل حفظ المورد لالتقاط التصنيف
+        const _origSaveSupplier = window.saveSupplier;
+        if (_origSaveSupplier) {
+          window.saveSupplier = function () {
+            const name = document
+              .getElementById("supplier-name-input")
+              .value.trim();
+            if (!name) {
+              showToast("أدخل اسم المورد", "error");
+              return;
+            }
+            const sClass =
+              document.getElementById("supplier-class-input")?.value || "main";
+
+            // البحث عن المورد لتحديثه أو إضافته
+            const editId = document.getElementById("supplier-edit-id")?.value;
+
+            _origSaveSupplier(); // استدعاء الدالة الأصلية للحفظ
+
+            // تحديث التصنيف بعد الحفظ
+            const latestSupplier = editId
+              ? DB.suppliers.find((s) => s.id === editId)
+              : DB.suppliers[DB.suppliers.length - 1];
+            if (latestSupplier) {
+              latestSupplier.supplierClass = sClass;
+              saveDB();
+              if (typeof renderSuppliers === "function") renderSuppliers();
+            }
+          };
+        }
+
+        // تعديل عرض الموردين لإظهار التصنيف
+        const _origRenderSuppliers = window.renderSuppliers;
+        if (_origRenderSuppliers) {
+          window.renderSuppliers = function () {
+            _origRenderSuppliers();
+            setTimeout(() => {
+              const tbody = document.getElementById("suppliers-tbody");
+              if (!tbody) return;
+              Array.from(tbody.rows).forEach((row, i) => {
+                if (row.cells.length < 5) return;
+                const sup = DB.suppliers[i];
+                if (!sup) return;
+                const badge =
+                  sup.supplierClass === "main"
+                    ? '<span class="tag" style="background:#fff9e6;color:#f59e0b;border:1px solid #f59e0b;font-size:10px">⭐ أساسي</span>'
+                    : '<span class="tag" style="background:#f0f6ff;color:#3b82f6;border:1px solid #3b82f6;font-size:10px">🔄 فرعي</span>';
+
+                // إضافة البادج بجوار الاسم
+                row.cells[0].innerHTML = `<strong>${sup.name}</strong><br>${badge}`;
+              });
+            }, 100);
+          };
+        }
+
+        // ── 2. توريدات الوقود (أسعار الشراء، طرق الدفع، وربط بالموردين) ──
+        // إعادة بناء واجهة إضافة توريد الوقود
+        const _origRenderFuelDeliveries = window.renderFuelDeliveries;
+        window.renderFuelDeliveries = function () {
+          _origRenderFuelDeliveries();
+
+          setTimeout(() => {
+            const cardBody = document.querySelector(
+              "#page-fuel-deliveries .card-body",
+            );
+            if (
+              cardBody &&
+              !document.getElementById("delivery-payment-method")
+            ) {
+              // إعادة بناء محتوى الكارت
+              cardBody.innerHTML = `
+              <div class="info-box">
+                <span>📋</span><span>سجل التوريد واربطه بالمورد. سيتم تحديث الخزان وتسوية الحسابات تلقائياً.</span>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                <div class="form-group" style="grid-column:1/-1">
+                  <label class="form-label">الخزان / نوع الوقود</label>
+                  <select class="form-input form-select" id="delivery-tank-select" onchange="v44UpdateDeliveryPrice()"></select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">الكمية المستلمة (لتر)</label>
+                  <input type="number" class="form-input" id="delivery-qty" placeholder="0" step="1" min="1" oninput="v44UpdateDeliveryTotal()">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">سعر شراء اللتر (ج)</label>
+                  <input type="number" class="form-input" id="delivery-price" placeholder="0.00" step="0.01" oninput="v44UpdateDeliveryTotal()">
+                </div>
+              </div>
+              
+              <div style="background:var(--surface2);border-radius:8px;padding:12px;margin:12px 0;text-align:center;border:1px dashed var(--accent)">
+                <div style="font-size:11px;color:var(--text3);margin-bottom:4px">إجمالي قيمة التوريد</div>
+                <div id="delivery-total-display" style="font-family:var(--mono);font-size:22px;font-weight:900;color:var(--accent)">0.00 ج</div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">المورد</label>
+                <select class="form-input form-select" id="delivery-supplier-select">
+                  <option value="">-- اختر المورد --</option>
+                  ${(DB.suppliers || []).map((s) => `<option value="${s.id}">${s.supplierClass === "main" ? "⭐" : "🔄"} ${s.name}</option>`).join("")}
+                </select>
+              </div>
+
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                <div class="form-group">
+                  <label class="form-label">طريقة الدفع</label>
+                  <select class="form-input form-select" id="delivery-payment-method">
+                    <option value="credit">🧾 آجل (يُضاف لمديونية المورد)</option>
+                    <option value="cash">💵 كاش (يُخصم من الخزينة)</option>
+                    <option value="bank">🏦 تحويل بنكي (يُخصم من البنك)</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">رقم الفاتورة / المرجع</label>
+                  <input type="text" class="form-input" id="delivery-invoice" placeholder="رقم الفاتورة">
+                </div>
+              </div>
+              
+              <div class="form-group">
+                <label class="form-label">التاريخ</label>
+                <input type="date" class="form-input" id="delivery-date" value="${new Date().toISOString().split("T")[0]}">
+              </div>
+
+              <button class="btn btn-primary" style="width: 100%; justify-content: center; font-size:14px; padding:10px" onclick="v44SaveFuelDelivery()">
+                💾 تسجيل التوريد
+              </button>
+            `;
+
+              // تعبئة الخزانات
+              const tankSel = document.getElementById("delivery-tank-select");
+              tankSel.innerHTML =
+                '<option value="">-- اختر الخزان --</option>' +
+                DB.tanks
+                  .map((t) => {
+                    const fuel = fuelById(t.fuelId);
+                    return `<option value="${t.id}" data-cost="${fuel ? fuel.costPrice : 0}">${t.name} — ${fuel ? fuel.name : "-"} (رصيد: ${F44(t.level)} ل)</option>`;
+                  })
+                  .join("");
+            }
+
+            // تحديث جدول التوريدات ليظهر الإجمالي والحالة
+            const tbody = document.getElementById("deliveries-tbody");
+            if (tbody) {
+              const all = [...(DB.fuelDeliveries || [])].reverse();
+              if (all.length === 0) {
+                tbody.innerHTML =
+                  '<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:30px">لا توجد توريدات مسجلة</td></tr>';
+              } else {
+                tbody.innerHTML = all
+                  .map((d, i) => {
+                    const tank = tankById(d.tankId);
+                    const fuel = tank ? fuelById(tank.fuelId) : null;
+                    const sup = (DB.suppliers || []).find(
+                      (s) => s.id === d.supplierId,
+                    ) || { name: d.supplier || "-" };
+
+                    const isPaid =
+                      d.payMethod === "cash" ||
+                      d.payMethod === "bank" ||
+                      d.status === "paid";
+                    const statusTag = isPaid
+                      ? '<span class="tag tag-green">مدفوع</span>'
+                      : '<span class="tag tag-red">آجل</span>';
+
+                    const actionBtn =
+                      !isPaid && d.supplierId
+                        ? `<button class="btn btn-success btn-sm" onclick="v44PayDelivery('${d.id}')">💰 دفع</button>`
+                        : "";
+
+                    return `<tr>
+                  <td style="font-family:var(--mono);color:var(--text3)">${all.length - i}</td>
+                  <td style="font-size:11px">${D44(d.date)}</td>
+                  <td><span style="color:${fuel ? fuel.color : "var(--text)"};font-weight:600">${tank ? tank.name : "-"}</span> <span style="color:var(--text3);font-size:10px">${fuel ? fuel.name : ""}</span></td>
+                  <td style="font-family:var(--mono);font-weight:700;color:var(--green)">${F44(d.qty)} ل</td>
+                  <td style="font-family:var(--mono);font-weight:700;color:var(--accent)">${F44(d.total || 0)} ج</td>
+                  <td style="font-size:11px">${sup.name}</td>
+                  <td>${statusTag}</td>
+                  <td style="display:flex;gap:4px">
+                    ${actionBtn}
+                    <button class="btn btn-danger btn-sm" onclick="deleteDelivery('${d.id}')">🗑</button>
+                  </td>
+                </tr>`;
+                  })
+                  .join("");
+
+                // تحديث هيدر الجدول لو لزم الأمر
+                const theadRow = tbody.previousElementSibling.rows[0];
+                if (theadRow.cells.length === 7) {
+                  theadRow.innerHTML = `<th>#</th><th>التاريخ</th><th>الخزان/الوقود</th><th>الكمية (ل)</th><th>الإجمالي (ج)</th><th>المورّد</th><th>الحالة</th><th>إجراء</th>`;
+                }
+              }
+            }
+          }, 100);
+        };
+
+        // دوال مساعدة لأسعار التوريد
+        window.v44UpdateDeliveryPrice = function () {
+          const sel = document.getElementById("delivery-tank-select");
+          const opt = sel.options[sel.selectedIndex];
+          if (opt && opt.dataset.cost) {
+            document.getElementById("delivery-price").value = opt.dataset.cost;
+            v44UpdateDeliveryTotal();
+          }
+        };
+
+        window.v44UpdateDeliveryTotal = function () {
+          const qty =
+            parseFloat(document.getElementById("delivery-qty").value) || 0;
+          const price =
+            parseFloat(document.getElementById("delivery-price").value) || 0;
+          document.getElementById("delivery-total-display").textContent =
+            F44(qty * price) + " ج";
+        };
+
+        // حفظ التوريد (المنطق المحاسبي الكامل)
+        window.v44SaveFuelDelivery = function () {
+          const tankId = document.getElementById("delivery-tank-select").value;
+          const qty =
+            parseFloat(document.getElementById("delivery-qty").value) || 0;
+          const price =
+            parseFloat(document.getElementById("delivery-price").value) || 0;
+          const total = qty * price;
+          const supplierId = document.getElementById(
+            "delivery-supplier-select",
+          ).value;
+          const payMethod = document.getElementById(
+            "delivery-payment-method",
+          ).value;
+          const invoice = document
+            .getElementById("delivery-invoice")
+            .value.trim();
+          const dateVal =
+            document.getElementById("delivery-date").value ||
+            new Date().toISOString();
+
+          if (!tankId) {
+            showToast("اختر الخزان", "error");
+            return;
+          }
+          if (qty <= 0) {
+            showToast("أدخل كمية صحيحة", "error");
+            return;
+          }
+          if (!supplierId) {
+            showToast("اختر المورد", "error");
+            return;
+          }
+
+          const tank = tankById(tankId);
+          const fuel = fuelById(tank.fuelId);
+          const sup = DB.suppliers.find((s) => s.id === supplierId);
+
+          // التحقق من سعة الخزان
+          const projected = tank.level + qty;
+          if (projected > tank.capacity) {
+            if (
+              !confirm(
+                `⚠️ تحذير: التوريد سيجعل الخزان يتجاوز سعته القصوى (${F44(tank.capacity)} لتر).\nهل تريد المتابعة؟`,
+              )
+            )
+              return;
+          }
+
+          // 1. إضافة الرصيد للخزان
+          tank.level = projected;
+          if (price > 0 && fuel) {
+            // تحديث سعر الشراء للوقود بمتوسط السعر لو لزم الأمر (اختياري)
+            fuel.costPrice = price;
+          }
+
+          const deliveryId = id();
+
+          // 2. المعالجة المحاسبية
+          if (payMethod === "credit") {
+            // آجل: يضاف لمديونية المورد
+            sup.balance += total;
+          } else if (payMethod === "cash") {
+            // كاش: يخصم من الخزنة
+            if (!DB.deposits) DB.deposits = [];
+            DB.deposits.push({
+              id: "D" + Date.now(),
+              date: new Date(dateVal).toISOString(),
+              type: "expense",
+              amount: total,
+              bank: sup.name,
+              ref: invoice || deliveryId,
+              note: `دفع كاش لتوريد وقود (${fuel.name}) - ${qty} لتر`,
+            });
+          } else if (payMethod === "bank") {
+            // بنك: حركة سحب بنكية
+            if (!DB.bankMovements) DB.bankMovements = [];
+            DB.bankMovements.push({
+              id: "BM" + Date.now(),
+              date: new Date(dateVal).toISOString(),
+              type: "withdrawal",
+              amount: total,
+              bank: sup.name,
+              receipt: invoice,
+              person: DB.settings.supervisor,
+              note: `تحويل بنكي لتوريد وقود (${fuel.name}) - ${qty} لتر`,
+            });
+            // لتأثيرها في الخزينة الكلية (يقلل رصيد البنك)
+            DB.deposits.push({
+              id: "D" + Date.now(),
+              date: new Date(dateVal).toISOString(),
+              type: "withdrawal",
+              amount: total,
+              bank: "تحويل بنكي للمورد",
+              ref: invoice || deliveryId,
+              note: `توريد وقود بنكي - ${sup.name}`,
+            });
+          }
+
+          // 3. حفظ سجل التوريد
+          if (!DB.fuelDeliveries) DB.fuelDeliveries = [];
+          DB.fuelDeliveries.push({
+            id: deliveryId,
+            date: new Date(dateVal).toISOString(),
+            tankId,
+            qty,
+            unitPrice: price,
+            total,
+            supplierId,
+            supplier: sup.name,
+            invoice,
+            payMethod,
+            status: payMethod === "credit" ? "pending" : "paid",
+          });
+
+          saveDB();
+          renderFuelDeliveries();
+
+          const payMsg =
+            payMethod === "credit"
+              ? `تم إضافته لمديونية المورد`
+              : `تم خصمه من ${payMethod === "cash" ? "الخزينة" : "البنك"}`;
+          showToast(
+            `✅ تم توريد ${qty} لتر بنجاح (${F44(total)} ج) - ${payMsg}`,
+            "success",
+          );
+        };
+
+        // ── 3. دفع التوريدات الآجلة ──────────────────────────────────────
+        window.v44PayDelivery = function (delivId) {
+          const d = DB.fuelDeliveries.find((x) => x.id === delivId);
+          if (!d || d.status === "paid") return;
+          const sup = DB.suppliers.find((s) => s.id === d.supplierId);
+          if (!sup) return;
+
+          let modal = document.getElementById("v44-pay-modal");
+          if (!modal) {
+            modal = document.createElement("div");
+            modal.id = "v44-pay-modal";
+            modal.className = "modal-overlay";
+            document.body.appendChild(modal);
+          }
+
+          modal.innerHTML = `
+          <div class="modal" style="width:400px;max-width:95vw">
+            <div class="modal-header">
+              <span>💰 سداد توريد آجل</span>
+              <button class="modal-close" onclick="document.getElementById('v44-pay-modal').classList.remove('open')">✕</button>
+            </div>
+            <div class="modal-body">
+              <div style="background:var(--surface2);padding:12px;border-radius:8px;margin-bottom:14px;text-align:center">
+                <div style="font-size:12px;color:var(--text3)">المورد: ${sup.name}</div>
+                <div style="font-size:18px;font-weight:900;color:var(--accent);font-family:var(--mono)">${F44(d.total)} ج</div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">طريقة السداد</label>
+                <select class="form-input form-select" id="v44-pay-method">
+                  <option value="cash">💵 كاش (يُخصم من درج الخزنة)</option>
+                  <option value="bank">🏦 تحويل بنكي (يُخصم من رصيد البنك)</option>
+                </select>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-primary" style="flex:1" onclick="v44ExecuteDeliveryPayment('${delivId}')">💾 تأكيد الدفع</button>
+              <button class="btn btn-secondary" onclick="document.getElementById('v44-pay-modal').classList.remove('open')">إلغاء</button>
+            </div>
+          </div>
+        `;
+          modal.classList.add("open");
+        };
+
+        window.v44ExecuteDeliveryPayment = function (delivId) {
+          const d = DB.fuelDeliveries.find((x) => x.id === delivId);
+          const sup = DB.suppliers.find((s) => s.id === d.supplierId);
+          const method = document.getElementById("v44-pay-method").value;
+
+          // خصم المديونية
+          sup.balance = Math.max(0, sup.balance - d.total);
+          d.status = "paid";
+
+          // الخصم المحاسبي
+          if (method === "cash") {
+            DB.deposits.push({
+              id: "D" + Date.now(),
+              date: new Date().toISOString(),
+              type: "expense",
+              amount: d.total,
+              bank: sup.name,
+              ref: d.invoice || d.id,
+              note: `سداد آجل لتوريد وقود سابق`,
+            });
+          } else {
+            DB.bankMovements.push({
+              id: "BM" + Date.now(),
+              date: new Date().toISOString(),
+              type: "withdrawal",
+              amount: d.total,
+              bank: sup.name,
+              receipt: d.invoice,
+              person: DB.settings.supervisor,
+              note: `تحويل بنكي لسداد توريد وقود آجل`,
+            });
+            DB.deposits.push({
+              id: "D" + Date.now(),
+              date: new Date().toISOString(),
+              type: "withdrawal",
+              amount: d.total,
+              bank: "تحويل للمورد",
+              ref: d.invoice || d.id,
+              note: `سداد بنكي - ${sup.name}`,
+            });
+          }
+
+          saveDB();
+          document.getElementById("v44-pay-modal").classList.remove("open");
+          renderFuelDeliveries();
+          if (typeof renderTreasury === "function") renderTreasury();
+          showToast(`✅ تم سداد التوريد بنجاح!`, "success");
+        };
+
+        // ── 4. إضافة "إيداع لصالح مورد" في الحركات البنكية ──────────────────
+        const _origRenderBankMovements = window.renderBankMovements;
+        if (_origRenderBankMovements) {
+          window.renderBankMovements = function () {
+            _origRenderBankMovements();
+
+            setTimeout(() => {
+              const typeSelect = document.getElementById("bank-mov-type");
+              if (
+                typeSelect &&
+                !typeSelect.querySelector('option[value="pay-supplier"]')
+              ) {
+                const opt = document.createElement("option");
+                opt.value = "pay-supplier";
+                opt.innerHTML = "🏢 تحويل لصالح مورد (يقلل مديونيته)";
+                typeSelect.appendChild(opt);
+
+                // إضافة دروب داون للموردين
+                const supDiv = document.createElement("div");
+                supDiv.className = "form-group";
+                supDiv.id = "bank-mov-supplier-wrapper";
+                supDiv.style.display = "none";
+                supDiv.innerHTML = `
+                <label class="form-label">اختر المورد</label>
+                <select class="form-input form-select" id="bank-mov-supplier">
+                  <option value="">-- اختر المورد --</option>
+                  ${(DB.suppliers || []).map((s) => `<option value="${s.id}">${s.name} (مديونية: ${F44(s.balance)} ج)</option>`).join("")}
+                </select>
+              `;
+                typeSelect.parentNode.parentNode.insertBefore(
+                  supDiv,
+                  typeSelect.parentNode.nextSibling,
+                );
+
+                typeSelect.addEventListener("change", function () {
+                  document.getElementById(
+                    "bank-mov-supplier-wrapper",
+                  ).style.display =
+                    this.value === "pay-supplier" ? "block" : "none";
+                });
+              }
+            }, 100);
+          };
+        }
+
+        const _origSaveBankMovement = window.saveBankMovement;
+        if (_origSaveBankMovement) {
+          window.saveBankMovement = function () {
+            const type = document.getElementById("bank-mov-type").value;
+            if (type === "pay-supplier") {
+              const amount =
+                parseFloat(document.getElementById("bank-mov-amount").value) ||
+                0;
+              const supplierId =
+                document.getElementById("bank-mov-supplier").value;
+              const bank = document
+                .getElementById("bank-mov-bank")
+                .value.trim();
+              const receipt = document
+                .getElementById("bank-mov-receipt")
+                .value.trim();
+              const person = document
+                .getElementById("bank-mov-person")
+                .value.trim();
+              const note = document
+                .getElementById("bank-mov-note")
+                .value.trim();
+
+              if (amount <= 0) {
+                showToast("أدخل مبلغ صحيح", "error");
+                return;
+              }
+              if (!supplierId) {
+                showToast("اختر المورد", "error");
+                return;
+              }
+
+              const sup = DB.suppliers.find((s) => s.id === supplierId);
+
+              // خصم المديونية من المورد
+              sup.balance -= amount; // سيتحول لسالب لو دفع بزيادة (رصيد مقدم)
+
+              // تسجيل حركة السحب البنكي
+              const movId = id();
+              DB.bankMovements.push({
+                id: movId,
+                date: new Date().toISOString(),
+                type: "withdrawal", // هي محاسبياً سحب من البنك
+                amount,
+                bank,
+                receipt,
+                person,
+                note: `تحويل لصالح المورد: ${sup.name}${note ? " - " + note : ""}`,
+              });
+
+              // خصم من الخزينة الرئيسية لتوازن الأرقام
+              DB.deposits.push({
+                id: id(),
+                date: new Date().toISOString(),
+                type: "withdrawal",
+                amount,
+                source: "bank-movement",
+                bankMovementId: movId,
+                note: `تحويل بنكي للمورد ${sup.name} — إيصال ${receipt}`,
+              });
+
+              saveDB();
+
+              document.getElementById("bank-mov-amount").value = "";
+              document.getElementById("bank-mov-receipt").value = "";
+              document.getElementById("bank-mov-note").value = "";
+              document.getElementById("bank-mov-type").value = "deposit";
+              document.getElementById(
+                "bank-mov-supplier-wrapper",
+              ).style.display = "none";
+
+              renderBankMovements();
+              if (typeof renderTreasury === "function") renderTreasury();
+              showToast(
+                `✅ تم تحويل ${F44(amount)} ج للمورد ${sup.name} وتقليل مديونيته`,
+                "success",
+              );
+              return;
+            }
+            // إذا لم يكن الدفع لمورد، نفذ الكود الأصلي
+            _origSaveBankMovement();
+          };
+        }
+
+        // ── إجبار الخزنة على السماح بالسالب (بدون Confirm المزعج في بعض الأماكن) ──
+        // تم تصميمه في الدوال بالأعلى ليقوم بالسحب مباشرة.
+
+        // إعادة الرسم لتطبيق الباتش فوراً
+        setTimeout(() => {
+          if (typeof currentPage !== "undefined") {
+            if (currentPage === "fuel-deliveries") renderFuelDeliveries();
+            if (currentPage === "suppliers") renderSuppliers();
+            if (currentPage === "bank-deposits") renderBankMovements();
+          }
+        }, 200);
+
+        console.log(
+          "✅ V44 PATCH LOADED: Complete Suppliers, Fuel Deliveries, and Bank Integration.",
+        );
+      })();
+      // -----------------------------------
+      (function () {
+        "use strict";
+
+        const F45 = (n) =>
+          Number(n || 0).toLocaleString("en-US", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          });
+        const D45 = (iso) =>
+          iso
+            ? new Date(iso).toLocaleString("ar-EG", {
+                dateStyle: "short",
+                timeStyle: "short",
+              })
+            : "—";
+
+        // ── 1. ربط التحويل البنكي للمورد بسجله ليظهر في كشف الحساب ────────
+        const _origSaveBankMovementV45 = window.saveBankMovement;
+        if (_origSaveBankMovementV45) {
+          window.saveBankMovement = function () {
+            const type = document.getElementById("bank-mov-type").value;
+            if (type === "pay-supplier") {
+              const amount =
+                parseFloat(document.getElementById("bank-mov-amount").value) ||
+                0;
+              const supplierId =
+                document.getElementById("bank-mov-supplier").value;
+              const bank = document
+                .getElementById("bank-mov-bank")
+                .value.trim();
+              const receipt = document
+                .getElementById("bank-mov-receipt")
+                .value.trim();
+              const person = document
+                .getElementById("bank-mov-person")
+                .value.trim();
+              const note = document
+                .getElementById("bank-mov-note")
+                .value.trim();
+
+              if (amount <= 0 || !supplierId) {
+                _origSaveBankMovementV45();
+                return;
+              }
+
+              const sup = DB.suppliers.find((s) => s.id === supplierId);
+              sup.balance -= amount;
+
+              const movId = "BM" + Date.now();
+              DB.bankMovements.push({
+                id: movId,
+                date: new Date().toISOString(),
+                type: "withdrawal",
+                amount,
+                bank,
+                receipt,
+                person,
+                note: `تحويل لصالح المورد: ${sup.name}${note ? " - " + note : ""}`,
+              });
+
+              // 🔴 الإضافة الجوهرية: إضافة supplierId للحركة عشان تظهر في كشف الحساب
+              DB.deposits.push({
+                id: "D" + Date.now(),
+                date: new Date().toISOString(),
+                type: "withdrawal",
+                amount,
+                source: "bank-movement",
+                bankMovementId: movId,
+                supplierId: supplierId, // <-- هنا السر
+                note: `تحويل بنكي للمورد ${sup.name} — إيصال ${receipt}`,
+              });
+
+              saveDB();
+
+              document.getElementById("bank-mov-amount").value = "";
+              document.getElementById("bank-mov-receipt").value = "";
+              document.getElementById("bank-mov-note").value = "";
+              document.getElementById("bank-mov-type").value = "deposit";
+              document.getElementById(
+                "bank-mov-supplier-wrapper",
+              ).style.display = "none";
+
+              renderBankMovements();
+              if (typeof renderTreasury === "function") renderTreasury();
+              showToast(
+                `✅ تم تحويل ${F45(amount)} ج للمورد ${sup.name} وتقليل مديونيته`,
+                "success",
+              );
+              return;
+            }
+            _origSaveBankMovementV45();
+          };
+        }
+
+        // ── 2. ربط سداد توريدات الوقود بسجل المورد ────────────────────────
+        if (typeof window.v44ExecuteDeliveryPayment === "function") {
+          window.v44ExecuteDeliveryPayment = function (delivId) {
+            const d = DB.fuelDeliveries.find((x) => x.id === delivId);
+            const sup = DB.suppliers.find((s) => s.id === d.supplierId);
+            const method = document.getElementById("v44-pay-method").value;
+
+            sup.balance = Math.max(0, sup.balance - d.total);
+            d.status = "paid";
+
+            if (method === "cash") {
+              DB.deposits.push({
+                id: "D" + Date.now(),
+                date: new Date().toISOString(),
+                type: "expense",
+                amount: d.total,
+                bank: sup.name,
+                ref: d.invoice || d.id,
+                supplierId: sup.id, // <-- ربط بالحساب
+                note: `سداد آجل كاش لتوريد وقود سابق`,
+              });
+            } else {
+              DB.bankMovements.push({
+                id: "BM" + Date.now(),
+                date: new Date().toISOString(),
+                type: "withdrawal",
+                amount: d.total,
+                bank: sup.name,
+                receipt: d.invoice,
+                person: DB.settings.supervisor,
+                note: `تحويل بنكي لسداد توريد وقود آجل`,
+              });
+              DB.deposits.push({
+                id: "D" + Date.now(),
+                date: new Date().toISOString(),
+                type: "withdrawal",
+                amount: d.total,
+                bank: "تحويل للمورد",
+                ref: d.invoice || d.id,
+                supplierId: sup.id, // <-- ربط بالحساب
+                note: `سداد بنكي لتوريد وقود - ${sup.name}`,
+              });
+            }
+            saveDB();
+            document.getElementById("v44-pay-modal").classList.remove("open");
+            renderFuelDeliveries();
+            if (typeof renderTreasury === "function") renderTreasury();
+            showToast(`✅ تم سداد التوريد بنجاح!`, "success");
+          };
+        }
+
+        // ── 3. تحديث بناء كشف حساب المورد (ليشمل الوقود، المشتريات، والبنك) ──
+        window.buildSupplierStatementHTML = function (sid, forPrint) {
+          const sup = (DB.suppliers || []).find((s) => s.id === sid);
+          if (!sup) return "";
+          const s = DB.settings;
+
+          const purchases = (DB.purchases || []).filter(
+            (p) => p.supplierId === sid,
+          );
+          const fuelDels = (DB.fuelDeliveries || []).filter(
+            (d) => d.supplierId === sid,
+          );
+          // فلترة المدفوعات (كاش أو تحويل بنكي) التي تحمل ID المورد
+          const payments = (DB.deposits || []).filter(
+            (d) =>
+              (d.type === "expense" || d.type === "withdrawal") &&
+              d.supplierId === sid,
+          );
+
+          const movements = [];
+
+          // أ. المشتريات العادية
+          purchases.forEach((p) => {
+            movements.push({
+              date: p.date,
+              type: "invoice",
+              icon: "📦",
+              desc: `فاتورة مشتريات ${p.invoiceNo ? "#" + p.invoiceNo : "(" + p.id.slice(-5) + ")"}${p.desc ? " — " + p.desc : ""}`,
+              debit: p.total,
+              credit: 0,
+            });
+          });
+
+          // ب. توريدات الوقود
+          fuelDels.forEach((d) => {
+            const tank = DB.tanks.find((t) => t.id === d.tankId);
+            const fuel = tank
+              ? DB.fuels.find((f) => f.id === tank.fuelId)
+              : null;
+            movements.push({
+              date: d.date,
+              type: "fuel",
+              icon: "⛽",
+              desc: `توريد وقود (${fuel ? fuel.name : "-"}) — ${d.qty} لتر${d.invoice ? " — فاتورة: " + d.invoice : ""}`,
+              debit: d.total,
+              credit: 0,
+            });
+          });
+
+          // ج. المدفوعات (كاش + تحويلات بنكية)
+          payments.forEach((d) => {
+            movements.push({
+              date: d.date,
+              type: "payment",
+              icon: d.type === "withdrawal" ? "🏦" : "💵",
+              desc: `دفعة / سداد — ${d.note || d.ref || ""}`,
+              debit: 0,
+              credit: d.amount,
+            });
+          });
+
+          // ترتيب زمني
+          movements.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+          let runningBalance = 0;
+          let totalDebit = 0,
+            totalCredit = 0;
+          const rows = movements
+            .map((m) => {
+              runningBalance += m.debit - m.credit;
+              totalDebit += m.debit;
+              totalCredit += m.credit;
+              const dateStr = D45(m.date);
+              const typeTag =
+                m.type === "payment"
+                  ? forPrint
+                    ? '<span style="background:#d1fae5;color:#047857;padding:2px 6px;border-radius:4px;font-size:10px">دفعة/تحويل</span>'
+                    : '<span class="tag tag-green" style="font-size:10px">دفعة</span>'
+                  : forPrint
+                    ? '<span style="background:#fef3c7;color:#d97706;padding:2px 6px;border-radius:4px;font-size:10px">فاتورة/توريد</span>'
+                    : '<span class="tag tag-accent" style="font-size:10px">فاتورة</span>';
+
+              if (forPrint) {
+                return `<tr>
+              <td style="border:1px solid #ddd;padding:6px;font-size:11px">${dateStr}</td>
+              <td style="border:1px solid #ddd;padding:6px">${typeTag}</td>
+              <td style="border:1px solid #ddd;padding:6px;font-size:11px">${m.icon} ${m.desc}</td>
+              <td style="border:1px solid #ddd;padding:6px;text-align:center;font-family:monospace;color:${m.debit ? "#dc2626" : "#999"}">${m.debit ? F45(m.debit) : "—"}</td>
+              <td style="border:1px solid #ddd;padding:6px;text-align:center;font-family:monospace;color:${m.credit ? "#059669" : "#999"}">${m.credit ? F45(m.credit) : "—"}</td>
+              <td style="border:1px solid #ddd;padding:6px;text-align:center;font-family:monospace;font-weight:700">${F45(runningBalance)}</td>
+            </tr>`;
+              } else {
+                return `<tr>
+              <td style="font-size:11px;color:var(--text3)">${dateStr}</td>
+              <td>${typeTag}</td>
+              <td style="font-size:12px">${m.icon} ${m.desc}</td>
+              <td style="font-family:var(--mono);text-align:center;color:${m.debit ? "var(--red)" : "var(--text3)"}">${m.debit ? F45(m.debit) : "—"}</td>
+              <td style="font-family:var(--mono);text-align:center;color:${m.credit ? "var(--green)" : "var(--text3)"}">${m.credit ? F45(m.credit) : "—"}</td>
+              <td style="font-family:var(--mono);text-align:center;font-weight:700">${F45(runningBalance)}</td>
+            </tr>`;
+              }
+            })
+            .join("");
+
+          const finalBalance = runningBalance;
+
+          if (forPrint) {
+            return `<div class="invoice-a4">
+            <div style="text-align:center;margin-bottom:16px;border-bottom:2px solid #333;padding-bottom:12px">
+              <div style="font-size:20px;font-weight:700">${s.stationName || "المحطة"}</div>
+              <div style="font-size:16px;color:#f59e0b;font-weight:700">كشف حساب مورد شامل (مشتريات + وقود)</div>
+              <div style="font-size:12px;color:#666;margin-top:6px">تاريخ الطباعة: ${D45(new Date().toISOString())}</div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;font-size:12px">
+              <div><strong>اسم المورد:</strong> ${sup.name}</div>
+              <div><strong>النوع:</strong> ${sup.type || "—"}</div>
+              <div><strong>الهاتف:</strong> ${sup.phone || "—"}</div>
+              <div><strong>العنوان:</strong> ${sup.address || "—"}</div>
+            </div>
+            <table style="width:100%;border-collapse:collapse;font-size:11px">
+              <thead>
+                <tr style="background:#f5f5f5">
+                  <th style="border:1px solid #ddd;padding:6px">التاريخ</th>
+                  <th style="border:1px solid #ddd;padding:6px">النوع</th>
+                  <th style="border:1px solid #ddd;padding:6px">البيان</th>
+                  <th style="border:1px solid #ddd;padding:6px">مدين (عليّ)</th>
+                  <th style="border:1px solid #ddd;padding:6px">دائن (دفعت)</th>
+                  <th style="border:1px solid #ddd;padding:6px">الرصيد</th>
+                </tr>
+              </thead>
+              <tbody>${rows || '<tr><td colspan="6" style="border:1px solid #ddd;padding:20px;text-align:center;color:#999">لا توجد حركات</td></tr>'}</tbody>
+              <tfoot>
+                <tr style="background:#fff9e6;font-weight:700">
+                  <td colspan="3" style="border:1px solid #ddd;padding:8px">الإجماليات</td>
+                  <td style="border:1px solid #ddd;padding:8px;text-align:center;color:#dc2626">${F45(totalDebit)}</td>
+                  <td style="border:1px solid #ddd;padding:8px;text-align:center;color:#059669">${F45(totalCredit)}</td>
+                  <td style="border:1px solid #ddd;padding:8px;text-align:center;color:#f59e0b">${F45(finalBalance)}</td>
+                </tr>
+              </tfoot>
+            </table>
+            <div style="margin-top:16px;background:#fff9e6;border:1px solid #f59e0b;border-radius:8px;padding:12px;display:flex;justify-content:space-between;align-items:center">
+              <span style="font-weight:700">الرصيد النهائي المستحق (عليّ للمورد):</span>
+              <span style="font-family:monospace;font-size:20px;font-weight:700;color:#f59e0b">${F45(finalBalance)} ج</span>
+            </div>
+          </div>`;
+          }
+
+          return `
+          <div style="background:var(--surface2);border-radius:8px;padding:12px;margin-bottom:14px;display:grid;grid-template-columns:repeat(2,1fr);gap:8px;font-size:12px">
+            <div><span style="color:var(--text3)">المورد:</span> <strong>${sup.name}</strong></div>
+            <div><span style="color:var(--text3)">النوع:</span> ${sup.type || "—"}</div>
+            <div><span style="color:var(--text3)">الهاتف:</span> ${sup.phone || "—"}</div>
+            <div><span style="color:var(--text3)">العنوان:</span> ${sup.address || "—"}</div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px">
+            <div style="background:var(--surface2);border-radius:8px;padding:12px;text-align:center">
+              <div style="font-size:11px;color:var(--text3);margin-bottom:4px">إجمالي الفواتير والتوريد</div>
+              <div style="font-family:var(--mono);font-size:18px;font-weight:700;color:var(--red)">${F45(totalDebit)}</div>
+            </div>
+            <div style="background:var(--surface2);border-radius:8px;padding:12px;text-align:center">
+              <div style="font-size:11px;color:var(--text3);margin-bottom:4px">إجمالي المدفوع (بنك/كاش)</div>
+              <div style="font-family:var(--mono);font-size:18px;font-weight:700;color:var(--green)">${F45(totalCredit)}</div>
+            </div>
+            <div style="background:var(--surface2);border-radius:8px;padding:12px;text-align:center">
+              <div style="font-size:11px;color:var(--text3);margin-bottom:4px">الرصيد المستحق</div>
+              <div style="font-family:var(--mono);font-size:18px;font-weight:700;color:var(--accent)">${F45(finalBalance)}</div>
+            </div>
+          </div>
+          <table class="readings-table">
+            <thead>
+              <tr>
+                <th>التاريخ</th>
+                <th>النوع</th>
+                <th>البيان</th>
+                <th>مدين</th>
+                <th>دائن</th>
+                <th>الرصيد</th>
+              </tr>
+            </thead>
+            <tbody>${rows || '<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:20px">لا توجد حركات</td></tr>'}</tbody>
+          </table>
+        `;
+        };
+
+        console.log(
+          "✅ V45 PATCH LOADED: Linked Bank Transfers and Fuel Deliveries to Supplier Statement.",
+        );
+      })();
+      // -----------------------------------
+      (function () {
+        "use strict";
+
+        const F46 = (n) =>
+          Number(n || 0).toLocaleString("en-US", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          });
+
+        // ── 1. تعديل واجهة نافذة المشتريات لإضافة خيار "طريقة الدفع" ──────
+        const _origOpenPurchaseModalV46 = window.openAddPurchaseModal;
+        window.openAddPurchaseModal = function () {
+          if (_origOpenPurchaseModalV46) _origOpenPurchaseModalV46();
+
+          // حقن حقل طريقة الدفع في المودال
+          const modalBody = document.querySelector(
+            "#add-purchase-modal .modal-body",
+          );
+          if (
+            modalBody &&
+            !document.getElementById("purchase-payment-method")
+          ) {
+            const statusRow = document
+              .getElementById("purchase-status")
+              .closest('div[style*="grid-template-columns"]');
+            if (statusRow) {
+              const methodDiv = document.createElement("div");
+              methodDiv.className = "form-group";
+              methodDiv.id = "purchase-method-wrapper";
+              methodDiv.style.display = "none"; // مخفي افتراضياً لأن الحالة "آجل"
+              methodDiv.innerHTML = `
+              <label class="form-label">طريقة دفع المبلغ</label>
+              <select class="form-input form-select" id="purchase-payment-method">
+                <option value="cash">💵 كاش (من درج الخزنة)</option>
+                <option value="bank">🏦 إيداع / تحويل بنكي</option>
+              </select>
+            `;
+              statusRow.appendChild(methodDiv);
+              statusRow.style.gridTemplateColumns = "1fr 1fr 1fr"; // تعديل التقسيم لثلاث خانات
+            }
+          }
+
+          // ربط ظهور حقل "طريقة الدفع" بحالة الفاتورة
+          const statusSel = document.getElementById("purchase-status");
+          if (statusSel) {
+            statusSel.addEventListener("change", function () {
+              const methodWrapper = document.getElementById(
+                "purchase-method-wrapper",
+              );
+              if (methodWrapper) {
+                methodWrapper.style.display =
+                  this.value === "paid" || this.value === "partial"
+                    ? "block"
+                    : "none";
+              }
+            });
+          }
+        };
+
+        // ── 2. تعديل دالة حفظ المشتريات لمعالجة الدفع البنكي ──────────────
+        window.savePurchase = function () {
+          if (!purchaseItems || purchaseItems.length === 0) {
+            showToast("أضف أصنافاً للفاتورة أولاً", "error");
+            return;
+          }
+          const validItems = purchaseItems.filter((r) =>
+            r.type === "existing" ? r.itemId && r.qty > 0 : r.name && r.qty > 0,
+          );
+          if (!validItems.length) {
+            showToast("أكمل بيانات الأصناف", "error");
+            return;
+          }
+
+          const total = validItems.reduce((s, r) => s + (r.total || 0), 0);
+          const supplierId = document.getElementById(
+            "purchase-supplier-select",
+          ).value;
+          const sup = (DB.suppliers || []).find((s) => s.id === supplierId);
+          const status = document.getElementById("purchase-status").value;
+          const payMethod =
+            document.getElementById("purchase-payment-method")?.value || "cash";
+          const dateVal =
+            document.getElementById("purchase-date").value ||
+            new Date().toISOString();
+          const invoiceNo = document
+            .getElementById("purchase-invoice-no")
+            .value.trim();
+
+          let paidAmount = 0;
+          if (status === "paid") paidAmount = total;
+          else if (status === "partial") {
+            paidAmount =
+              parseFloat(
+                document.getElementById("purchase-partial-amount").value,
+              ) || 0;
+            if (paidAmount <= 0) {
+              showToast("أدخل المبلغ المدفوع", "error");
+              return;
+            }
+          }
+
+          // --- المعالجة المحاسبية ---
+          const pId = "PUR-" + Date.now();
+          const remaining = total - paidAmount;
+
+          if (paidAmount > 0) {
+            if (payMethod === "bank") {
+              // أ. تسجيل حركة سحب من البنك
+              const movId = "BM" + Date.now();
+              if (!DB.bankMovements) DB.bankMovements = [];
+              DB.bankMovements.push({
+                id: movId,
+                date: new Date(dateVal).toISOString(),
+                type: "withdrawal",
+                amount: paidAmount,
+                bank: "مشتريات بنكية",
+                receipt: invoiceNo,
+                person: DB.settings.supervisor,
+                note: `شراء أصناف: ${validItems.map((i) => i.name).join(", ")}`,
+              });
+
+              // ب. تسجيل في الخزينة الكلية (تأثير على رصيد البنك)
+              if (!DB.deposits) DB.deposits = [];
+              DB.deposits.push({
+                id: "D" + Date.now(),
+                date: new Date(dateVal).toISOString(),
+                type: "withdrawal",
+                amount: paidAmount,
+                bank: "تحويل بنكي لمشتريات",
+                ref: invoiceNo || pId,
+                supplierId: supplierId, // ربط بكشف حساب المورد
+                note: `سداد بنكي (كلي/جزئي) لفاتورة مشتريات`,
+              });
+            } else {
+              // ج. تسجيل مصروف كاش من الخزنة
+              if (!DB.deposits) DB.deposits = [];
+              DB.deposits.push({
+                id: "D" + Date.now(),
+                date: new Date(dateVal).toISOString(),
+                type: "expense",
+                amount: paidAmount,
+                bank: sup ? sup.name : "مشتريات نقدية",
+                ref: invoiceNo || pId,
+                supplierId: supplierId, // ربط بكشف حساب المورد
+                note: `سداد كاش (كلي/جزئي) لفاتورة مشتريات`,
+              });
+            }
+          }
+
+          // تحديث مديونية المورد بالمتبقي فقط
+          if (sup && remaining > 0) {
+            sup.balance = (sup.balance || 0) + remaining;
+          }
+
+          // تحديث المخزن
+          const savedItems = [];
+          validItems.forEach((row) => {
+            let item;
+            if (row.type === "existing") {
+              item = DB.inventory.find((i) => i.id === row.itemId);
+              if (item) {
+                item.qty += parseInt(row.qty);
+                if (row.unitPrice > 0) item.buyPrice = row.unitPrice;
+                if (row.sellPrice > 0) item.sellPrice = row.sellPrice;
+              }
+            } else {
+              item = {
+                id: "_" + Math.random().toString(36).substr(2, 9),
+                name: row.name,
+                unit: row.unit || "قطعة",
+                qty: parseInt(row.qty),
+                buyPrice: row.unitPrice,
+                sellPrice: row.sellPrice,
+                minQty: 5,
+                icon: "📦",
+              };
+              DB.inventory.push(item);
+            }
+            if (item)
+              savedItems.push({
+                itemId: item.id,
+                name: item.name,
+                qty: row.qty,
+                unitPrice: row.unitPrice,
+                total: row.total,
+              });
+          });
+
+          // حفظ الفاتورة
+          DB.purchases.push({
+            id: pId,
+            date: dateVal,
+            supplierId,
+            supplierName: sup ? sup.name : "",
+            invoiceNo,
+            desc: document.getElementById("purchase-desc").value.trim(),
+            items: savedItems,
+            total,
+            status,
+            paidAmount,
+            payMethod,
+            remainingAmount: remaining,
+          });
+
+          saveDB();
+          closeModal("add-purchase-modal");
+          renderPurchases();
+          renderInventory();
+
+          const methodTxt = payMethod === "bank" ? "البنك" : "الخزنة";
+          showToast(
+            `✅ تم حفظ الفاتورة وخصم ${F46(paidAmount)} ج من ${methodTxt}`,
+            "success",
+          );
+          purchaseItems = [];
+        };
+
+        console.log(
+          "✅ V46 PATCH LOADED: Added Bank Deposit option to Purchase Invoices.",
+        );
+      })();
     </script>
   </body>
 </html>
