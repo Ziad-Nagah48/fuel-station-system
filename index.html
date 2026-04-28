@@ -1841,6 +1841,13 @@
         </div>
         <div
           class="nav-item"
+          onclick="navigate('parent-company')"
+          id="nav-parent-company"
+        >
+          <span class="nav-icon">🏛️</span>الشركة الأم
+        </div>
+        <div
+          class="nav-item"
           onclick="navigate('purchases')"
           id="nav-purchases"
         >
@@ -3264,6 +3271,446 @@
                 </thead>
                 <tbody id="deliveries-tbody"></tbody>
               </table>
+            </div>
+          </div>
+        </div>
+        <!-- PARENT COMPANY PAGE -->
+        <div class="page" id="page-parent-company">
+          <!-- Stats Row -->
+          <div
+            id="pc-stats-row"
+            class="stats-grid"
+            style="margin-bottom: 16px"
+          ></div>
+
+          <!-- إعداد: هل فيزا/توم كارد بتروح للشركة الأم؟ -->
+          <div
+            class="card"
+            style="
+              margin-bottom: 16px;
+              padding: 12px 16px;
+              display: flex;
+              align-items: center;
+              gap: 12px;
+              flex-wrap: wrap;
+            "
+          >
+            <span style="font-size: 13px; font-weight: 600; color: var(--text2)"
+              >💳 عند تأكيد وصول فيزا / توم كارد من تقرير التحويلات:</span
+            >
+            <label
+              style="
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                cursor: pointer;
+                font-size: 13px;
+              "
+            >
+              <input
+                type="checkbox"
+                id="pc-transfer-toggle"
+                onchange="savePCTransferSetting(this.checked)"
+                style="width: 16px; height: 16px; accent-color: var(--accent)"
+              />
+              <span>تُخصم تلقائياً من مديونية الشركة الأم</span>
+            </label>
+            <span
+              id="pc-transfer-status-label"
+              style="font-size: 11px; color: var(--text3)"
+            ></span>
+          </div>
+
+          <!-- Tabs Bar -->
+          <div class="card" style="margin-bottom: 16px">
+            <div
+              style="
+                display: flex;
+                gap: 0;
+                border-bottom: 1px solid var(--border);
+                overflow-x: auto;
+                padding: 0 4px;
+              "
+            >
+              <button
+                class="hr-tab-btn active"
+                id="pc-tab-btn-statement"
+                onclick="pcSwitchTab('statement')"
+              >
+                📋 كشف الحساب
+              </button>
+              <button
+                class="hr-tab-btn"
+                id="pc-tab-btn-invoices"
+                onclick="pcSwitchTab('invoices')"
+              >
+                🧾 الفواتير
+              </button>
+              <button
+                class="hr-tab-btn"
+                id="pc-tab-btn-deliveries"
+                onclick="pcSwitchTab('deliveries')"
+              >
+                🚛 توريدات الوقود
+              </button>
+              <button
+                class="hr-tab-btn"
+                id="pc-tab-btn-rents"
+                onclick="pcSwitchTab('rents')"
+              >
+                🏠 الإيجارات المشتركة
+              </button>
+              <button
+                class="hr-tab-btn"
+                id="pc-tab-btn-payments"
+                onclick="pcSwitchTab('payments')"
+              >
+                💳 المدفوعات
+              </button>
+              <button
+                class="hr-tab-btn"
+                id="pc-tab-btn-transfers"
+                onclick="pcSwitchTab('transfers')"
+              >
+                📲 تحويلات فيزا/توم كارد
+              </button>
+              <button
+                class="hr-tab-btn"
+                id="pc-tab-btn-reports"
+                onclick="pcSwitchTab('reports')"
+              >
+                📊 تقارير
+              </button>
+            </div>
+          </div>
+
+          <!-- Tab: Statement -->
+          <div id="pc-tab-statement">
+            <div class="card">
+              <div class="card-header">
+                <span>📋</span> كشف حساب الشركة الأم
+                <div class="card-actions" style="display: flex; gap: 8px">
+                  <select
+                    class="form-input form-select btn-sm"
+                    id="pc-stmt-filter"
+                    onchange="renderPCStatement()"
+                    style="width: 160px"
+                  >
+                    <option value="all">كل الحركات</option>
+                    <option value="debt">مديونية فقط</option>
+                    <option value="paid">مدفوعات فقط</option>
+                  </select>
+                  <button
+                    class="btn btn-secondary btn-sm"
+                    onclick="printPCStatement()"
+                  >
+                    🖨 طباعة
+                  </button>
+                </div>
+              </div>
+              <div class="card-body" style="padding: 0">
+                <div id="pc-statement-content" style="padding: 16px"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab: Invoices -->
+          <div id="pc-tab-invoices" style="display: none">
+            <div
+              style="
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 12px;
+              "
+            >
+              <h3 style="font-size: 14px; font-weight: 700">
+                🧾 فواتير الشركة الأم
+              </h3>
+              <div style="display: flex; gap: 6px">
+                <button
+                  class="btn btn-secondary btn-sm"
+                  onclick="printPCSection('invoices')"
+                >
+                  🖨 طباعة
+                </button>
+                <button
+                  class="btn btn-primary btn-sm"
+                  onclick="openPCInvoiceModal()"
+                >
+                  + إضافة فاتورة
+                </button>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-body" style="padding: 0">
+                <table class="readings-table">
+                  <thead>
+                    <tr>
+                      <th>التاريخ</th>
+                      <th>رقم الفاتورة</th>
+                      <th>البيان</th>
+                      <th>الأصناف</th>
+                      <th>الإجمالي</th>
+                      <th>طريقة الدفع</th>
+                      <th>الحالة</th>
+                      <th>إجراء</th>
+                    </tr>
+                  </thead>
+                  <tbody id="pc-invoices-tbody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab: Deliveries -->
+          <div id="pc-tab-deliveries" style="display: none">
+            <div
+              style="
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 12px;
+              "
+            >
+              <h3 style="font-size: 14px; font-weight: 700">
+                🚛 توريدات الوقود من الشركة الأم
+              </h3>
+              <div style="display: flex; gap: 6px">
+                <button
+                  class="btn btn-secondary btn-sm"
+                  onclick="printPCSection('deliveries')"
+                >
+                  🖨 طباعة
+                </button>
+                <span
+                  style="
+                    font-size: 12px;
+                    color: var(--text3);
+                    align-self: center;
+                  "
+                  >تُضاف من صفحة "توريدات الوقود" — اختر الشركة الأم كمورد</span
+                >
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-body" style="padding: 0">
+                <table class="readings-table">
+                  <thead>
+                    <tr>
+                      <th>التاريخ</th>
+                      <th>نوع الوقود</th>
+                      <th>الكمية (لتر)</th>
+                      <th>السعر/لتر</th>
+                      <th>الإجمالي</th>
+                      <th>حالة التأكيد</th>
+                      <th>إجراء</th>
+                    </tr>
+                  </thead>
+                  <tbody id="pc-deliveries-tbody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab: Rents -->
+          <div id="pc-tab-rents" style="display: none">
+            <div
+              style="
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 12px;
+              "
+            >
+              <h3 style="font-size: 14px; font-weight: 700">
+                🏠 الإيجارات المشتركة
+              </h3>
+              <div style="display: flex; gap: 6px">
+                <button
+                  class="btn btn-secondary btn-sm"
+                  onclick="printPCSection('rents')"
+                >
+                  🖨 طباعة
+                </button>
+                <button
+                  class="btn btn-primary btn-sm"
+                  onclick="openPCRentModal()"
+                >
+                  + إضافة إيجار
+                </button>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-body" style="padding: 0">
+                <table class="readings-table">
+                  <thead>
+                    <tr>
+                      <th>التاريخ</th>
+                      <th>البيان</th>
+                      <th>الإجمالي</th>
+                      <th>حصة الشركة الأم</th>
+                      <th>حصتي</th>
+                      <th>الحالة</th>
+                      <th>إجراء</th>
+                    </tr>
+                  </thead>
+                  <tbody id="pc-rents-tbody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab: Payments -->
+          <div id="pc-tab-payments" style="display: none">
+            <div
+              style="
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 12px;
+              "
+            >
+              <h3 style="font-size: 14px; font-weight: 700">
+                💳 سجل المدفوعات للشركة الأم
+              </h3>
+              <div style="display: flex; gap: 6px">
+                <button
+                  class="btn btn-secondary btn-sm"
+                  onclick="printPCSection('payments')"
+                >
+                  🖨 طباعة
+                </button>
+                <button
+                  class="btn btn-primary btn-sm"
+                  onclick="openPCPaymentModal()"
+                >
+                  + تسجيل دفعة
+                </button>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-body" style="padding: 0">
+                <table class="readings-table">
+                  <thead>
+                    <tr>
+                      <th>التاريخ</th>
+                      <th>المبلغ</th>
+                      <th>طريقة الدفع</th>
+                      <th>رقم الإيصال</th>
+                      <th>البنك / الحساب</th>
+                      <th>من قام بالإيداع</th>
+                      <th>ملاحظة</th>
+                      <th>إجراء</th>
+                    </tr>
+                  </thead>
+                  <tbody id="pc-payments-tbody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab: Transfers (فيزا/توم كارد التي وصلت للشركة الأم) -->
+          <div id="pc-tab-transfers" style="display: none">
+            <div
+              style="
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 12px;
+              "
+            >
+              <div>
+                <h3 style="font-size: 14px; font-weight: 700">
+                  📲 تحويلات فيزا / توم كارد — وصلت للشركة الأم
+                </h3>
+                <div
+                  style="font-size: 11px; color: var(--text3); margin-top: 3px"
+                >
+                  💡 مدفوعات فيزا وتوم كارد تظهر هنا فقط — مش في سجل المدفوعات
+                  العادي
+                </div>
+              </div>
+              <span
+                id="pc-transfers-total-badge"
+                style="
+                  font-family: var(--mono);
+                  font-size: 13px;
+                  color: var(--green);
+                  background: var(--green-dim);
+                  padding: 4px 12px;
+                  border-radius: 6px;
+                  border: 1px solid var(--green);
+                "
+              ></span>
+            </div>
+            <div class="card">
+              <div class="card-body" style="padding: 0">
+                <table class="readings-table">
+                  <thead>
+                    <tr>
+                      <th>التاريخ</th>
+                      <th>المبلغ</th>
+                      <th>النوع</th>
+                      <th>الوردية / المصدر</th>
+                      <th>ملاحظة</th>
+                    </tr>
+                  </thead>
+                  <tbody id="pc-transfers-tbody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab: Reports -->
+          <div id="pc-tab-reports" style="display: none">
+            <div class="card">
+              <div class="card-header">
+                <span>📊</span> تقارير الشركة الأم
+                <div
+                  class="card-actions"
+                  style="display: flex; gap: 8px; align-items: center"
+                >
+                  <select
+                    class="form-input form-select btn-sm"
+                    id="pc-report-period"
+                    onchange="renderPCReport()"
+                    style="width: 130px"
+                  >
+                    <option value="daily">يومي</option>
+                    <option value="weekly">أسبوعي</option>
+                    <option value="monthly" selected>شهري</option>
+                    <option value="yearly">سنوي</option>
+                  </select>
+                  <input
+                    type="date"
+                    class="form-input btn-sm"
+                    id="pc-report-date"
+                    onchange="renderPCReport()"
+                    style="width: 160px"
+                    title="حدد التاريخ لعرض الفترة المقابلة له"
+                  />
+                  <button
+                    class="btn btn-secondary btn-sm"
+                    onclick="printPCReport()"
+                  >
+                    🖨 طباعة
+                  </button>
+                </div>
+              </div>
+              <div class="card-body">
+                <div id="pc-report-content">
+                  <div
+                    style="
+                      text-align: center;
+                      color: var(--text3);
+                      padding: 30px;
+                    "
+                  >
+                    اختر الفترة واضغط على التاريخ لعرض التقرير
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -5541,6 +5988,481 @@
       </div>
     </div>
 
+    <!-- PC INVOICE MODAL -->
+    <div class="modal-overlay" id="pc-invoice-modal">
+      <div
+        class="modal"
+        style="width: 700px; max-height: 92vh; overflow-y: auto"
+      >
+        <div class="modal-header">
+          🧾 فاتورة من الشركة الأم
+          <button class="modal-close" onclick="closeModal('pc-invoice-modal')">
+            ✕
+          </button>
+        </div>
+        <div class="modal-body">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px">
+            <div class="form-group">
+              <label class="form-label">رقم الفاتورة</label>
+              <input
+                type="text"
+                class="form-input"
+                id="pc-inv-no"
+                placeholder="رقم الفاتورة"
+              />
+            </div>
+            <div class="form-group">
+              <label class="form-label">التاريخ</label>
+              <input type="date" class="form-input" id="pc-inv-date" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">البيان / الوصف العام</label>
+            <input
+              type="text"
+              class="form-input"
+              id="pc-inv-desc"
+              placeholder="وصف مختصر للفاتورة"
+            />
+          </div>
+
+          <!-- أصناف الفاتورة -->
+          <div
+            style="
+              margin-bottom: 8px;
+              font-size: 12px;
+              font-weight: 700;
+              color: var(--text2);
+            "
+          >
+            📦 أصناف الفاتورة
+          </div>
+          <div id="pc-inv-items-list" style="margin-bottom: 8px"></div>
+          <div
+            style="
+              display: grid;
+              grid-template-columns: 2fr 1fr 1fr auto;
+              gap: 8px;
+              align-items: end;
+              margin-bottom: 12px;
+            "
+          >
+            <div>
+              <label class="form-label" style="font-size: 11px"
+                >الصنف / البيان</label
+              >
+              <input
+                type="text"
+                class="form-input"
+                id="pc-inv-item-name"
+                placeholder="اسم الصنف أو البيان"
+              />
+            </div>
+            <div>
+              <label class="form-label" style="font-size: 11px">الكمية</label>
+              <input
+                type="number"
+                class="form-input"
+                id="pc-inv-item-qty"
+                placeholder="1"
+                min="1"
+                step="1"
+                oninput="calcPCInvItemTotal()"
+              />
+            </div>
+            <div>
+              <label class="form-label" style="font-size: 11px"
+                >السعر / الوحدة (ج)</label
+              >
+              <input
+                type="number"
+                class="form-input"
+                id="pc-inv-item-price"
+                placeholder="0.00"
+                step="0.01"
+                oninput="calcPCInvItemTotal()"
+              />
+            </div>
+            <button
+              class="btn btn-primary btn-sm"
+              onclick="addPCInvItem()"
+              style="height: 36px; white-space: nowrap"
+            >
+              + إضافة
+            </button>
+          </div>
+          <div
+            style="
+              background: var(--surface2);
+              border-radius: 8px;
+              padding: 10px 14px;
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              margin-bottom: 14px;
+            "
+          >
+            <span style="font-size: 12px; color: var(--text3)"
+              >الإجمالي التلقائي</span
+            >
+            <span
+              id="pc-inv-auto-total"
+              style="
+                font-family: var(--mono);
+                font-size: 18px;
+                font-weight: 700;
+                color: var(--accent);
+              "
+              >0 ج</span
+            >
+          </div>
+          <div
+            style="height: 1px; background: var(--border); margin-bottom: 14px"
+          ></div>
+
+          <!-- يمكن تعديل المبلغ يدوياً -->
+          <div class="form-group">
+            <label class="form-label"
+              >المبلغ الإجمالي (ج) — يُحسب تلقائياً أو يمكن تعديله</label
+            >
+            <input
+              type="number"
+              class="form-input"
+              id="pc-inv-amount"
+              placeholder="0.00"
+              step="0.01"
+              min="0"
+            />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">طريقة الدفع</label>
+            <select
+              class="form-input form-select"
+              id="pc-inv-paymethod"
+              onchange="onPCInvPayMethodChange()"
+            >
+              <option value="pending">🧾 آجل (مديونية)</option>
+              <option value="cash">💵 كاش — ينزل من الخزنة</option>
+              <option value="deposit">🏦 إيداع بنكي — ينزل من الخزنة</option>
+            </select>
+          </div>
+          <div class="form-group" id="pc-inv-ref-group" style="display: none">
+            <label class="form-label">رقم مرجع / شيك / إيصال</label>
+            <input
+              type="text"
+              class="form-input"
+              id="pc-inv-ref"
+              placeholder="رقم الحوالة أو الشيك"
+            />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button
+            class="btn btn-secondary"
+            onclick="closeModal('pc-invoice-modal')"
+          >
+            إلغاء
+          </button>
+          <button class="btn btn-primary" onclick="savePCInvoice()">
+            💾 حفظ الفاتورة
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- PC RENT MODAL -->
+    <div class="modal-overlay" id="pc-rent-modal">
+      <div class="modal" style="width: 520px">
+        <div class="modal-header">
+          🏠 إيجار مشترك<button
+            class="modal-close"
+            onclick="closeModal('pc-rent-modal')"
+          >
+            ✕
+          </button>
+        </div>
+        <div class="modal-body">
+          <div
+            style="
+              background: var(--blue-dim);
+              border: 1px solid var(--blue);
+              border-radius: 8px;
+              padding: 10px 14px;
+              margin-bottom: 14px;
+              font-size: 12px;
+              color: var(--text2);
+            "
+          >
+            💡 <strong>آلية الإيجار:</strong> حصتك تنزل مصروف من الخزنة — حصة
+            الشركة الأم تُخصم من مديونيتك تلقائياً
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px">
+            <div class="form-group">
+              <label class="form-label">التاريخ</label>
+              <input type="date" class="form-input" id="pc-rent-date" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">الإجمالي (ج)</label>
+              <input
+                type="number"
+                class="form-input"
+                id="pc-rent-total"
+                placeholder="0.00"
+                step="0.01"
+                oninput="calcPCRentSplit()"
+              />
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">البيان</label>
+            <input
+              type="text"
+              class="form-input"
+              id="pc-rent-desc"
+              placeholder="مثال: إيجار يناير 2025"
+            />
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px">
+            <div class="form-group">
+              <label class="form-label">نسبة حصة الشركة الأم (%)</label>
+              <input
+                type="number"
+                class="form-input"
+                id="pc-rent-pct"
+                placeholder="50"
+                value="50"
+                min="0"
+                max="100"
+                oninput="calcPCRentSplit()"
+              />
+            </div>
+            <div class="form-group">
+              <label class="form-label"
+                >حصة الشركة الأم → تخصم من مديونيتك</label
+              >
+              <input
+                type="text"
+                class="form-input"
+                id="pc-rent-pc-share"
+                readonly
+                style="
+                  background: var(--red-dim);
+                  color: var(--red);
+                  font-weight: 700;
+                "
+              />
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">حصتي → تنزل من الخزنة</label>
+            <input
+              type="text"
+              class="form-input"
+              id="pc-rent-my-share"
+              readonly
+              style="
+                background: var(--blue-dim);
+                color: var(--blue);
+                font-weight: 700;
+              "
+            />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button
+            class="btn btn-secondary"
+            onclick="closeModal('pc-rent-modal')"
+          >
+            إلغاء
+          </button>
+          <button class="btn btn-primary" onclick="savePCRent()">💾 حفظ</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- PC PAYMENT MODAL -->
+    <div class="modal-overlay" id="pc-payment-modal">
+      <div class="modal" style="width: 500px">
+        <div class="modal-header">
+          💳 تسجيل دفعة للشركة الأم<button
+            class="modal-close"
+            onclick="closeModal('pc-payment-modal')"
+          >
+            ✕
+          </button>
+        </div>
+        <div class="modal-body">
+          <div
+            style="
+              background: var(--surface2);
+              border-radius: 8px;
+              padding: 12px;
+              margin-bottom: 14px;
+              text-align: center;
+            "
+          >
+            <div
+              style="font-size: 11px; color: var(--text3); margin-bottom: 4px"
+            >
+              إجمالي المديونية الحالية للشركة الأم
+            </div>
+            <div
+              id="pc-pay-due-display"
+              style="
+                font-family: var(--mono);
+                font-size: 22px;
+                font-weight: 700;
+                color: var(--red);
+              "
+            >
+              0.00 ج
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px">
+            <div class="form-group">
+              <label class="form-label">المبلغ (ج)</label>
+              <input
+                type="number"
+                class="form-input"
+                id="pc-pay-amount"
+                placeholder="0.00"
+                step="0.01"
+                min="0"
+              />
+            </div>
+            <div class="form-group">
+              <label class="form-label">التاريخ</label>
+              <input type="date" class="form-input" id="pc-pay-date" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">طريقة الدفع</label>
+            <div
+              style="
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 8px;
+              "
+            >
+              <div
+                class="pay-method selected"
+                id="pc-pay-m-deposit"
+                onclick="selectPCPayMethod('deposit', this)"
+                style="cursor: pointer"
+              >
+                <div class="pay-method-icon">🏦</div>
+                <div>إيداع بنكي</div>
+              </div>
+              <div
+                class="pay-method"
+                id="pc-pay-m-cash"
+                onclick="selectPCPayMethod('cash', this)"
+                style="cursor: pointer"
+              >
+                <div class="pay-method-icon">💵</div>
+                <div>كاش</div>
+              </div>
+            </div>
+            <input type="hidden" id="pc-pay-method" value="deposit" />
+          </div>
+
+          <!-- حقول الإيداع البنكي -->
+          <div
+            id="pc-pay-deposit-fields"
+            style="
+              background: var(--surface2);
+              border-radius: 8px;
+              padding: 12px;
+              margin-bottom: 4px;
+            "
+          >
+            <div
+              style="
+                font-size: 11px;
+                font-weight: 700;
+                color: var(--blue);
+                margin-bottom: 10px;
+              "
+            >
+              🏦 تفاصيل الإيداع البنكي
+            </div>
+            <div
+              style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px"
+            >
+              <div class="form-group" style="margin-bottom: 0">
+                <label class="form-label">رقم الإيصال</label>
+                <input
+                  type="text"
+                  class="form-input"
+                  id="pc-pay-receipt"
+                  placeholder="رقم إيصال البنك"
+                />
+              </div>
+              <div class="form-group" style="margin-bottom: 0">
+                <label class="form-label">اسم البنك</label>
+                <input
+                  type="text"
+                  class="form-input"
+                  id="pc-pay-bank"
+                  placeholder="مثل: الأهلي، CIB"
+                  list="pc-bank-names-list"
+                />
+                <datalist id="pc-bank-names-list">
+                  <option value="البنك الأهلي المصري"></option>
+                  <option value="بنك مصر"></option>
+                  <option value="CIB"></option>
+                  <option value="QNB"></option>
+                  <option value="البنك العربي الأفريقي"></option>
+                </datalist>
+              </div>
+              <div class="form-group" style="margin-bottom: 0">
+                <label class="form-label">رقم الحساب</label>
+                <input
+                  type="text"
+                  class="form-input"
+                  id="pc-pay-account"
+                  placeholder="رقم الحساب البنكي"
+                />
+              </div>
+              <div class="form-group" style="margin-bottom: 0">
+                <label class="form-label">من قام بالإيداع</label>
+                <input
+                  type="text"
+                  class="form-input"
+                  id="pc-pay-person"
+                  placeholder="اسم الشخص"
+                  list="pc-persons-list"
+                />
+                <datalist id="pc-persons-list"></datalist>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">ملاحظة (اختياري)</label>
+            <input
+              type="text"
+              class="form-input"
+              id="pc-pay-note"
+              placeholder="أي ملاحظة إضافية"
+            />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button
+            class="btn btn-secondary"
+            onclick="closeModal('pc-payment-modal')"
+          >
+            إلغاء
+          </button>
+          <button class="btn btn-primary" onclick="savePCPayment()">
+            💾 تأكيد الدفعة
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- ADD SUPPLIER MODAL -->
     <div class="modal-overlay" id="add-supplier-modal">
       <div class="modal" style="width: 440px">
@@ -7249,6 +8171,10 @@
           "تقرير العيارات الشهري",
           "تجميع كل العيارات المسجلة خلال الفترة",
         ],
+        "parent-company": [
+          "الشركة الأم",
+          "حسابات — فواتير — توريدات — مدفوعات",
+        ],
       };
 
       let currentPage = "dashboard";
@@ -7348,6 +8274,9 @@
             break;
           case "allowances-report":
             renderAllowancesReport();
+            break;
+          case "parent-company":
+            renderParentCompanyPage();
             break;
         }
       }
@@ -15442,6 +16371,33 @@
           sourceTxId: tx.id,
         });
         tx.confirmedDepositId = depositId;
+
+        // ✅ لو الإعدادات تقول إن فيزا/توم كارد بتروح للشركة الأم → سجّل دفعة مؤكدة في حساب الشركة الأم
+        const pcSettings = DB.parentCompany || {};
+        const pcTransferEnabled = pcSettings.transferGoesToPC !== false; // افتراضي: نعم
+        if (pcTransferEnabled) {
+          if (!DB.parentCompany)
+            DB.parentCompany = {
+              invoices: [],
+              payments: [],
+              rents: [],
+              transferGoesToPC: true,
+            };
+          if (!DB.parentCompany.payments) DB.parentCompany.payments = [];
+          const pcPayId = "PCP-TR-" + Date.now();
+          DB.parentCompany.payments.push({
+            id: pcPayId,
+            date: tx.confirmedAt,
+            amount: tx.total,
+            method:
+              tx.payMethod === "tomcard" || tx.handoverPayMethod === "tomcard"
+                ? "tomcard"
+                : "visa",
+            note: `تحويل ${methodLabel} — ${tx.shiftName || ""} — تأكيد وصول تلقائي`,
+            confirmed: true,
+            sourceTxId: tx.id,
+          });
+        }
         saveDB();
         renderTransfersReport();
         if (typeof renderTreasury === "function") renderTreasury();
@@ -27338,6 +28294,1566 @@ ${bodyHtml}
         console.log(
           "✅ V46 PATCH LOADED: Added Bank Deposit option to Purchase Invoices.",
         );
+      })();
+
+      // ============================================================
+      //  PARENT COMPANY MODULE — الشركة الأم
+      // ============================================================
+      (function () {
+        "use strict";
+
+        const fmtPC = (n) =>
+          Number(n || 0).toLocaleString("en-US", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          });
+
+        // --- DB helpers ---
+        function getPC() {
+          if (!DB.parentCompany) {
+            DB.parentCompany = {
+              name: "الشركة الأم",
+              balance: 0, // مديونية عليّ للشركة الأم (موجب = عليّ)
+              invoices: [], // فواتير وردت من الشركة الأم
+              rents: [], // إيجارات مشتركة
+              payments: [], // دفعات سددتها أنا للشركة الأم
+            };
+          }
+          return DB.parentCompany;
+        }
+
+        // حساب المديونية الكلية من كل الحركات
+        function calcPCBalance() {
+          const pc = getPC();
+          let balance = 0;
+
+          // فواتير (مديونية)
+          (pc.invoices || []).forEach((inv) => {
+            if (inv.payMethod === "pending") balance += inv.amount || 0;
+          });
+
+          // توريدات الوقود من الشركة الأم (غير مؤكدة لا تدخل)
+          (DB.fuelDeliveries || []).forEach((d) => {
+            if (d.supplierId === "parent-company" && d.confirmed) {
+              balance += d.totalCost || 0;
+            }
+          });
+
+          // الإيجارات: حصة الشركة الأم بتُخصم من المديونية (لا تُضاف)
+          // الخصم يتم عبر دفعات مؤكدة مرتبطة بالإيجار — بيتحسب في قسم الدفعات أدناه
+
+          // دفعات مؤكدة تنزل من المديونية
+          (pc.payments || []).forEach((p) => {
+            if (p.confirmed) balance -= p.amount || 0;
+          });
+
+          return balance;
+        }
+
+        // ─── Render Page ─────────────────────────────────────────
+        window.renderParentCompanyPage = function () {
+          const pc = getPC();
+          const balance = calcPCBalance();
+
+          // Stats
+          const totalInvoices = (pc.invoices || []).reduce(
+            (s, i) => s + (i.amount || 0),
+            0,
+          );
+          const totalPaid = (pc.payments || [])
+            .filter((p) => p.confirmed)
+            .reduce((s, p) => s + (p.amount || 0), 0);
+          const pendingPayments = (pc.payments || []).filter(
+            (p) => !p.confirmed,
+          ).length;
+
+          document.getElementById("pc-stats-row").innerHTML = `
+            <div class="stat-card red">
+              <div class="stat-icon">🏛️</div>
+              <div class="stat-label">المديونية الحالية</div>
+              <div class="stat-value" style="color:var(--red);font-size:22px">${fmtPC(balance)}</div>
+              <div class="stat-sub">ج — إجمالي المستحق للشركة الأم</div>
+            </div>
+            <div class="stat-card green">
+              <div class="stat-icon">✅</div>
+              <div class="stat-label">إجمالي المدفوع</div>
+              <div class="stat-value" style="color:var(--green);font-size:22px">${fmtPC(totalPaid)}</div>
+              <div class="stat-sub">ج — دفعات مؤكدة</div>
+            </div>
+            <div class="stat-card blue">
+              <div class="stat-icon">🧾</div>
+              <div class="stat-label">إجمالي الفواتير</div>
+              <div class="stat-value" style="color:var(--blue);font-size:22px">${fmtPC(totalInvoices)}</div>
+              <div class="stat-sub">ج — ${(pc.invoices || []).length} فاتورة مسجلة</div>
+            </div>
+            <div class="stat-card accent">
+              <div class="stat-icon">⏳</div>
+              <div class="stat-label">دفعات بانتظار التأكيد</div>
+              <div class="stat-value" style="color:var(--accent);font-size:22px">${pendingPayments}</div>
+              <div class="stat-sub">في انتظار تأكيد الوصول</div>
+            </div>
+          `;
+
+          renderPCStatement();
+          renderPCInvoicesTable();
+          renderPCDeliveriesTable();
+          renderPCRentsTable();
+          renderPCPaymentsTable();
+        };
+
+        // Tab switching
+        window.pcSwitchTab = function (tab) {
+          [
+            "statement",
+            "invoices",
+            "deliveries",
+            "rents",
+            "payments",
+            "transfers",
+            "reports",
+          ].forEach((t) => {
+            document.getElementById("pc-tab-" + t).style.display =
+              t === tab ? "block" : "none";
+            const btn = document.getElementById("pc-tab-btn-" + t);
+            if (btn) btn.classList.toggle("active", t === tab);
+          });
+          if (tab === "transfers") renderPCTransfersTab();
+          if (tab === "reports") {
+            // ضع تاريخ اليوم تلقائياً لو مش محدد
+            const dateEl = document.getElementById("pc-report-date");
+            if (dateEl && !dateEl.value)
+              dateEl.value = new Date().toISOString().split("T")[0];
+            renderPCReport();
+          }
+        };
+
+        // ─── Statement ───────────────────────────────────────────
+        window.renderPCStatement = function () {
+          const pc = getPC();
+          const filter =
+            document.getElementById("pc-stmt-filter")?.value || "all";
+          let rows = [];
+          let runningBalance = 0;
+
+          // اجمع كل الحركات مرتبة بالتاريخ
+          let events = [];
+
+          // فواتير
+          (pc.invoices || []).forEach((inv) => {
+            events.push({
+              date: inv.date,
+              type: "invoice",
+              label: `فاتورة: ${inv.desc || inv.invoiceNo || "—"}`,
+              debit: inv.payMethod === "pending" ? inv.amount : 0,
+              credit: inv.payMethod !== "pending" ? inv.amount : 0,
+              payMethod: inv.payMethod,
+            });
+          });
+
+          // توريدات وقود مؤكدة
+          (DB.fuelDeliveries || []).forEach((d) => {
+            if (d.supplierId === "parent-company" && d.confirmed) {
+              events.push({
+                date: d.date,
+                type: "delivery",
+                label: `توريد وقود: ${d.fuelName || "وقود"}`,
+                debit: d.totalCost || 0,
+                credit: 0,
+              });
+            }
+          });
+
+          // إيجارات — حصة الشركة تُخصم من المديونية (تظهر كدفعة مرتبطة)
+          (pc.rents || []).forEach((r) => {
+            events.push({
+              date: r.date,
+              type: "rent",
+              label: `إيجار: ${r.desc || "—"} (حصة الشركة ${r.pcPct}% = ${fmtPC(r.pcShare)} ج خُصم — حصتك ${fmtPC(r.myShare)} ج نزلت من الخزنة)`,
+              debit: 0,
+              credit: r.pcShare || 0,
+            });
+          });
+
+          // دفعات مؤكدة
+          (pc.payments || []).forEach((p) => {
+            if (p.confirmed) {
+              const mLabel =
+                {
+                  tomcard: "توم كارد",
+                  visa: "فيزا",
+                  deposit: "إيداع",
+                  "rent-deduction": "خصم إيجار",
+                }[p.method] || p.method;
+              events.push({
+                date: p.date,
+                type: "payment",
+                label: `دفعة (${mLabel}): ${p.note || ""}`,
+                debit: 0,
+                credit: p.amount || 0,
+              });
+            }
+          });
+
+          events.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+          let totalDebit = 0,
+            totalCredit = 0;
+          let rowsHTML = "";
+          events.forEach((ev) => {
+            if (filter === "debt" && ev.credit > 0 && ev.debit === 0) return;
+            if (filter === "paid" && ev.debit > 0 && ev.credit === 0) return;
+            runningBalance += ev.debit - ev.credit;
+            totalDebit += ev.debit;
+            totalCredit += ev.credit;
+            const typeColors = {
+              invoice: "var(--blue)",
+              delivery: "var(--accent)",
+              rent: "var(--purple)",
+              payment: "var(--green)",
+            };
+            const typeLabels = {
+              invoice: "فاتورة",
+              delivery: "توريد",
+              rent: "إيجار",
+              payment: "دفعة",
+            };
+            rowsHTML += `<tr>
+              <td>${new Date(ev.date).toLocaleDateString("ar-EG")}</td>
+              <td><span class="tag" style="background:${typeColors[ev.type]}22;color:${typeColors[ev.type]}">${typeLabels[ev.type]}</span></td>
+              <td>${ev.label}</td>
+              <td style="font-family:var(--mono);color:var(--red)">${ev.debit > 0 ? fmtPC(ev.debit) : "—"}</td>
+              <td style="font-family:var(--mono);color:var(--green)">${ev.credit > 0 ? fmtPC(ev.credit) : "—"}</td>
+              <td style="font-family:var(--mono);color:${runningBalance > 0 ? "var(--red)" : "var(--green)"};font-weight:700">${fmtPC(runningBalance)}</td>
+            </tr>`;
+          });
+
+          document.getElementById("pc-statement-content").innerHTML = `
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px">
+              <div style="background:var(--surface2);border-radius:8px;padding:12px;text-align:center">
+                <div style="font-size:11px;color:var(--text3);margin-bottom:4px">إجمالي المديونية</div>
+                <div style="font-family:var(--mono);font-size:18px;font-weight:700;color:var(--red)">${fmtPC(totalDebit)} ج</div>
+              </div>
+              <div style="background:var(--surface2);border-radius:8px;padding:12px;text-align:center">
+                <div style="font-size:11px;color:var(--text3);margin-bottom:4px">إجمالي المدفوع</div>
+                <div style="font-family:var(--mono);font-size:18px;font-weight:700;color:var(--green)">${fmtPC(totalCredit)} ج</div>
+              </div>
+              <div style="background:var(--surface2);border-radius:8px;padding:12px;text-align:center">
+                <div style="font-size:11px;color:var(--text3);margin-bottom:4px">الرصيد المستحق</div>
+                <div style="font-family:var(--mono);font-size:18px;font-weight:700;color:var(--accent)">${fmtPC(runningBalance)} ج</div>
+              </div>
+            </div>
+            <table class="readings-table">
+              <thead><tr><th>التاريخ</th><th>النوع</th><th>البيان</th><th>مدين</th><th>دائن</th><th>الرصيد</th></tr></thead>
+              <tbody>${rowsHTML || '<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:20px">لا توجد حركات</td></tr>'}</tbody>
+            </table>
+          `;
+        };
+
+        // ─── Invoices Table ───────────────────────────────────────
+        function renderPCInvoicesTable() {
+          const pc = getPC();
+          const tbody = document.getElementById("pc-invoices-tbody");
+          if (!tbody) return;
+          const methodLabels = {
+            pending: '<span class="tag tag-accent">آجل</span>',
+            cash: '<span class="tag tag-green">💵 كاش</span>',
+            deposit: '<span class="tag tag-blue">🏦 إيداع</span>',
+          };
+          tbody.innerHTML =
+            (pc.invoices || []).length === 0
+              ? '<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:20px">لا توجد فواتير</td></tr>'
+              : [...(pc.invoices || [])]
+                  .reverse()
+                  .map(
+                    (inv) => `<tr>
+                <td>${new Date(inv.date).toLocaleDateString("ar-EG")}</td>
+                <td style="font-family:var(--mono)">${inv.invoiceNo || "—"}</td>
+                <td>${inv.desc || "—"}</td>
+                <td style="font-size:11px;color:var(--text3)">${(inv.items || []).length > 0 ? (inv.items || []).map((i) => `${i.name} ×${i.qty}`).join(", ") : "—"}</td>
+                <td style="font-family:var(--mono);font-weight:700;color:var(--accent)">${fmtPC(inv.amount)} ج</td>
+                <td>${methodLabels[inv.payMethod] || inv.payMethod}</td>
+                <td>${inv.payMethod === "pending" ? '<span class="tag tag-red">مستحقة</span>' : '<span class="tag tag-green">مدفوعة</span>'}</td>
+                <td style="display:flex;gap:4px">
+                  <button class="btn btn-secondary btn-sm" onclick="printSinglePCInvoice('${inv.id}')">🖨</button>
+                  <button class="btn btn-danger btn-sm" onclick="deletePCInvoice('${inv.id}')">🗑</button>
+                </td>
+              </tr>`,
+                  )
+                  .join("");
+        }
+
+        // ─── Deliveries Table ─────────────────────────────────────
+        function renderPCDeliveriesTable() {
+          const tbody = document.getElementById("pc-deliveries-tbody");
+          if (!tbody) return;
+          const deliveries = (DB.fuelDeliveries || []).filter(
+            (d) => d.supplierId === "parent-company",
+          );
+          tbody.innerHTML =
+            deliveries.length === 0
+              ? '<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px">لا توجد توريدات مرتبطة بالشركة الأم</td></tr>'
+              : [...deliveries]
+                  .reverse()
+                  .map(
+                    (d) => `<tr>
+                <td>${new Date(d.date).toLocaleDateString("ar-EG")}</td>
+                <td>${d.fuelName || "—"}</td>
+                <td style="font-family:var(--mono)">${fmtPC(d.liters || d.qty || 0)} ل</td>
+                <td style="font-family:var(--mono)">${fmtPC(d.pricePerLiter || d.unitPrice || 0)} ج</td>
+                <td style="font-family:var(--mono);font-weight:700;color:var(--accent)">${fmtPC(d.totalCost || d.total || 0)} ج</td>
+                <td>${d.confirmed ? '<span class="tag tag-green">✅ مؤكد — في المديونية</span>' : '<span class="tag tag-accent">⏳ بانتظار التأكيد</span>'}</td>
+                <td style="display:flex;gap:4px">${!d.confirmed ? `<button class="btn btn-success btn-sm" onclick="confirmPCDelivery('${d.id}')">✅ تأكيد الوصول</button>` : ""}
+                  <button class="btn btn-danger btn-sm" onclick="deletePCDelivery('${d.id}')">🗑</button></td>
+              </tr>`,
+                  )
+                  .join("");
+        }
+
+        // ─── Rents Table ──────────────────────────────────────────
+        function renderPCRentsTable() {
+          const pc = getPC();
+          const tbody = document.getElementById("pc-rents-tbody");
+          if (!tbody) return;
+          tbody.innerHTML =
+            (pc.rents || []).length === 0
+              ? '<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px">لا توجد إيجارات</td></tr>'
+              : [...(pc.rents || [])]
+                  .reverse()
+                  .map(
+                    (r) => `<tr>
+                <td>${new Date(r.date).toLocaleDateString("ar-EG")}</td>
+                <td>${r.desc || "—"}</td>
+                <td style="font-family:var(--mono)">${fmtPC(r.total)} ج</td>
+                <td style="font-family:var(--mono);color:var(--red)">${fmtPC(r.pcShare)} ج (${r.pcPct}%)</td>
+                <td style="font-family:var(--mono);color:var(--blue)">${fmtPC(r.myShare)} ج</td>
+                <td>${r.status === "paid" ? '<span class="tag tag-green">مدفوع</span>' : '<span class="tag tag-accent">معلق</span>'}</td>
+                <td><button class="btn btn-danger btn-sm" onclick="deletePCRent('${r.id}')">🗑</button></td>
+              </tr>`,
+                  )
+                  .join("");
+        }
+
+        // ─── Payments Table ───────────────────────────────────────
+        function renderPCPaymentsTable() {
+          const pc = getPC();
+          const tbody = document.getElementById("pc-payments-tbody");
+          if (!tbody) return;
+          const mLabel = {
+            deposit: "🏦 إيداع بنكي",
+            cash: "💵 كاش",
+            "rent-deduction": "🏠 خصم إيجار",
+          };
+          // فيزا وتوم كارد بتظهر في تقرير التحويلات فقط
+          const payments = (pc.payments || []).filter(
+            (p) => p.method !== "tomcard" && p.method !== "visa",
+          );
+          tbody.innerHTML =
+            payments.length === 0
+              ? '<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:20px">لا توجد مدفوعات</td></tr>'
+              : [...payments]
+                  .reverse()
+                  .map(
+                    (p) => `<tr>
+                <td>${new Date(p.date).toLocaleDateString("ar-EG")}</td>
+                <td style="font-family:var(--mono);font-weight:700;color:var(--green)">${fmtPC(p.amount)} ج</td>
+                <td>${mLabel[p.method] || p.method}</td>
+                <td style="font-family:var(--mono);color:var(--accent)">${p.receipt || "—"}</td>
+                <td style="font-size:12px">${p.bank ? p.bank + (p.account ? '<br><span style="color:var(--text3)">رقم: ' + p.account + "</span>" : "") : "—"}</td>
+                <td>${p.person || "—"}</td>
+                <td>${p.note || "—"}</td>
+                <td style="display:flex;gap:4px">
+                  <button class="btn btn-danger btn-sm" onclick="deletePCPayment('${p.id}')">🗑</button>
+                </td>
+              </tr>`,
+                  )
+                  .join("");
+        }
+
+        // ─── Modals ───────────────────────────────────────────────
+        window.openPCInvoiceModal = function () {
+          document.getElementById("pc-inv-no").value = "";
+          document.getElementById("pc-inv-date").value = new Date()
+            .toISOString()
+            .split("T")[0];
+          document.getElementById("pc-inv-desc").value = "";
+          document.getElementById("pc-inv-amount").value = "";
+          document.getElementById("pc-inv-paymethod").value = "pending";
+          document.getElementById("pc-inv-ref-group").style.display = "none";
+          openModal("pc-invoice-modal");
+        };
+
+        // ─── مساعد حساب أصناف الفاتورة ───────────────────────────
+        let pcInvItems = []; // مصفوفة الأصناف المؤقتة
+
+        window.calcPCInvItemTotal = function () {
+          const qty =
+            parseFloat(document.getElementById("pc-inv-item-qty").value) || 1;
+          const price =
+            parseFloat(document.getElementById("pc-inv-item-price").value) || 0;
+          // لا شيء — الإجمالي بيتحسب عند الإضافة
+        };
+
+        window.addPCInvItem = function () {
+          const name = document.getElementById("pc-inv-item-name").value.trim();
+          const qty =
+            parseFloat(document.getElementById("pc-inv-item-qty").value) || 1;
+          const price =
+            parseFloat(document.getElementById("pc-inv-item-price").value) || 0;
+          if (!name) {
+            showToast("أدخل اسم الصنف", "error");
+            return;
+          }
+          if (price <= 0) {
+            showToast("أدخل السعر", "error");
+            return;
+          }
+          pcInvItems.push({
+            id: Date.now(),
+            name,
+            qty,
+            price,
+            total: qty * price,
+          });
+          document.getElementById("pc-inv-item-name").value = "";
+          document.getElementById("pc-inv-item-qty").value = "";
+          document.getElementById("pc-inv-item-price").value = "";
+          renderPCInvItemsList();
+        };
+
+        window.removePCInvItem = function (id) {
+          pcInvItems = pcInvItems.filter((i) => i.id !== id);
+          renderPCInvItemsList();
+        };
+
+        function renderPCInvItemsList() {
+          const el = document.getElementById("pc-inv-items-list");
+          const totalEl = document.getElementById("pc-inv-auto-total");
+          const amountEl = document.getElementById("pc-inv-amount");
+          if (!el) return;
+          if (!pcInvItems.length) {
+            el.innerHTML = `<div style="color:var(--text3);font-size:12px;padding:8px 0">لا توجد أصناف — أضف صنف أو أدخل المبلغ يدوياً</div>`;
+            if (totalEl) totalEl.textContent = "0 ج";
+            return;
+          }
+          const grandTotal = pcInvItems.reduce((s, i) => s + i.total, 0);
+          el.innerHTML = `<table style="width:100%;border-collapse:collapse;margin-bottom:8px;font-size:12px">
+            <thead><tr style="background:var(--surface2)">
+              <th style="padding:6px 10px;text-align:right;color:var(--text3);font-weight:600">الصنف</th>
+              <th style="padding:6px 10px;text-align:center;color:var(--text3);font-weight:600">الكمية</th>
+              <th style="padding:6px 10px;text-align:center;color:var(--text3);font-weight:600">السعر/وحدة</th>
+              <th style="padding:6px 10px;text-align:left;color:var(--text3);font-weight:600">الإجمالي</th>
+              <th></th>
+            </tr></thead>
+            <tbody>${pcInvItems
+              .map(
+                (i) => `<tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:6px 10px">${i.name}</td>
+              <td style="padding:6px 10px;text-align:center;font-family:var(--mono)">${i.qty}</td>
+              <td style="padding:6px 10px;text-align:center;font-family:var(--mono)">${fmtPC(i.price)} ج</td>
+              <td style="padding:6px 10px;font-family:var(--mono);color:var(--accent);font-weight:700">${fmtPC(i.total)} ج</td>
+              <td style="padding:4px"><button onclick="removePCInvItem(${i.id})" class="btn btn-danger btn-sm" style="padding:3px 8px">✕</button></td>
+            </tr>`,
+              )
+              .join("")}</tbody>
+          </table>`;
+          if (totalEl) totalEl.textContent = fmtPC(grandTotal) + " ج";
+          if (amountEl && !amountEl._manuallyEdited)
+            amountEl.value = grandTotal.toFixed(2);
+        }
+
+        window.onPCInvPayMethodChange = function () {
+          const m = document.getElementById("pc-inv-paymethod").value;
+          document.getElementById("pc-inv-ref-group").style.display =
+            m !== "pending" ? "block" : "none";
+        };
+
+        window.savePCInvoice = function () {
+          const amount =
+            parseFloat(document.getElementById("pc-inv-amount").value) || 0;
+          if (amount <= 0) {
+            showToast("أدخل مبلغ الفاتورة", "error");
+            return;
+          }
+          const pc = getPC();
+          const payMethod = document.getElementById("pc-inv-paymethod").value;
+          const invDate =
+            document.getElementById("pc-inv-date").value ||
+            new Date().toISOString().split("T")[0];
+          const invId = "PCI-" + Date.now();
+          pc.invoices.push({
+            id: invId,
+            invoiceNo: document.getElementById("pc-inv-no").value.trim(),
+            date: invDate,
+            desc: document.getElementById("pc-inv-desc").value.trim(),
+            amount,
+            items: [...pcInvItems],
+            payMethod,
+            ref: document.getElementById("pc-inv-ref").value.trim(),
+          });
+
+          // ✅ كاش أو إيداع → ينزل من الخزنة فوراً كمصروف
+          if (payMethod === "cash" || payMethod === "deposit") {
+            if (!DB.expenses) DB.expenses = [];
+            DB.expenses.push({
+              id: "EXP-INV-" + Date.now(),
+              date: invDate,
+              category: "فاتورة شركة أم",
+              desc: `فاتورة ${document.getElementById("pc-inv-no").value.trim() || invId} — ${document.getElementById("pc-inv-desc").value.trim() || ""}`,
+              amount,
+              source: "pc-invoice",
+              invoiceId: invId,
+              payMethod,
+            });
+            // لو إيداع → سجّل في البنك
+            if (payMethod === "deposit") {
+              if (!DB.bankMovements) DB.bankMovements = [];
+              const bmId = "BM-INV-" + Date.now();
+              DB.bankMovements.push({
+                id: bmId,
+                date: invDate + "T00:00:00.000Z",
+                type: "deposit",
+                amount,
+                bank: "إيداع للشركة الأم",
+                account: document.getElementById("pc-inv-ref").value.trim(),
+                receipt:
+                  document.getElementById("pc-inv-no").value.trim() || invId,
+                person: "تسجيل تلقائي",
+                note: `فاتورة ${document.getElementById("pc-inv-no").value.trim() || invId}`,
+                source: "pc-invoice",
+                invoiceId: invId,
+              });
+              if (!DB.deposits) DB.deposits = [];
+              DB.deposits.push({
+                id: "D-INV-" + Date.now(),
+                date: invDate,
+                type: "withdrawal",
+                amount,
+                bank: "إيداع للشركة الأم",
+                bankMovementId: bmId,
+                source: "pc-invoice",
+                invoiceId: invId,
+                note: `فاتورة شركة أم — إيداع`,
+              });
+            }
+          }
+
+          saveDB();
+          pcInvItems = [];
+          renderPCInvItemsList();
+          closeModal("pc-invoice-modal");
+          renderParentCompanyPage();
+          if (typeof renderTreasury === "function") renderTreasury();
+          const payMsg =
+            payMethod === "pending"
+              ? "مديونية"
+              : payMethod === "cash"
+                ? "خُصم من الخزنة"
+                : "إيداع بنكي + خُصم من الخزنة";
+          showToast(
+            `✅ تم حفظ الفاتورة (${fmtPC(amount)} ج) — ${payMsg}`,
+            "success",
+          );
+        };
+
+        window.openPCInvoiceModal = function () {
+          pcInvItems = [];
+          document.getElementById("pc-inv-no").value = "";
+          document.getElementById("pc-inv-date").value = new Date()
+            .toISOString()
+            .split("T")[0];
+          document.getElementById("pc-inv-desc").value = "";
+          document.getElementById("pc-inv-amount").value = "";
+          document.getElementById("pc-inv-amount")._manuallyEdited = false;
+          document.getElementById("pc-inv-paymethod").value = "pending";
+          document.getElementById("pc-inv-ref-group").style.display = "none";
+          document.getElementById("pc-inv-ref").value = "";
+          renderPCInvItemsList();
+          openModal("pc-invoice-modal");
+        };
+
+        window.deletePCInvoice = function (id) {
+          if (!confirm("هل تريد حذف هذه الفاتورة؟")) return;
+          const pc = getPC();
+          // احذف المصروف المرتبط من الخزنة
+          DB.expenses = (DB.expenses || []).filter((e) => e.invoiceId !== id);
+          // احذف الحركة البنكية المرتبطة
+          const bm = (DB.bankMovements || []).find((m) => m.invoiceId === id);
+          if (bm) {
+            DB.bankMovements = DB.bankMovements.filter(
+              (m) => m.invoiceId !== id,
+            );
+            DB.deposits = (DB.deposits || []).filter((d) => d.invoiceId !== id);
+          }
+          pc.invoices = pc.invoices.filter((i) => i.id !== id);
+          saveDB();
+          renderParentCompanyPage();
+          if (typeof renderTreasury === "function") renderTreasury();
+          showToast("🗑 تم الحذف وتعديل الخزنة", "info");
+        };
+
+        window.deletePCDelivery = function (id) {
+          if (
+            !confirm(
+              "هل تريد حذف هذا التوريد؟ سيتم إزالة أثره من المديونية والخزان.",
+            )
+          )
+            return;
+          const delivery = (DB.fuelDeliveries || []).find((d) => d.id === id);
+          if (delivery) {
+            // استرجاع الكمية من الخزان
+            const tank = (DB.tanks || []).find((t) => t.id === delivery.tankId);
+            if (tank)
+              tank.level = Math.max(
+                0,
+                tank.level - (delivery.liters || delivery.qty || 0),
+              );
+          }
+          DB.fuelDeliveries = (DB.fuelDeliveries || []).filter(
+            (d) => d.id !== id,
+          );
+          saveDB();
+          renderParentCompanyPage();
+          showToast("🗑 تم حذف التوريد", "info");
+        };
+
+        // ─── تقارير الشركة الأم (أسبوعي / شهري / سنوي / تاريخ محدد) ───
+        window.renderPCReport = function () {
+          const period =
+            document.getElementById("pc-report-period")?.value || "monthly";
+          const dateInput =
+            document.getElementById("pc-report-date")?.value || "";
+          const pc = getPC();
+
+          let from, to, label;
+          const now = dateInput ? new Date(dateInput) : new Date();
+
+          if (period === "daily") {
+            from = new Date(now);
+            from.setHours(0, 0, 0, 0);
+            to = new Date(now);
+            to.setHours(23, 59, 59, 999);
+            label = now.toLocaleDateString("ar-EG", {
+              weekday: "long",
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+            });
+          } else if (period === "weekly") {
+            const day = now.getDay();
+            from = new Date(now);
+            from.setDate(now.getDate() - day);
+            from.setHours(0, 0, 0, 0);
+            to = new Date(from);
+            to.setDate(from.getDate() + 6);
+            to.setHours(23, 59, 59, 999);
+            label = `الأسبوع: ${from.toLocaleDateString("ar-EG")} — ${to.toLocaleDateString("ar-EG")}`;
+          } else if (period === "monthly") {
+            from = new Date(now.getFullYear(), now.getMonth(), 1);
+            to = new Date(
+              now.getFullYear(),
+              now.getMonth() + 1,
+              0,
+              23,
+              59,
+              59,
+              999,
+            );
+            label = now.toLocaleDateString("ar-EG", {
+              month: "long",
+              year: "numeric",
+            });
+          } else {
+            // yearly
+            from = new Date(now.getFullYear(), 0, 1);
+            to = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
+            label = `سنة ${now.getFullYear()}`;
+          }
+
+          // جمع الحركات في الفترة
+          let events = [];
+
+          (pc.invoices || []).forEach((inv) => {
+            const d = new Date(inv.date);
+            if (d >= from && d <= to) {
+              events.push({
+                date: inv.date,
+                type: "فاتورة",
+                label: inv.desc || inv.invoiceNo || "—",
+                debit: inv.payMethod === "pending" ? inv.amount : 0,
+                credit: inv.payMethod !== "pending" ? inv.amount : 0,
+              });
+            }
+          });
+
+          (DB.fuelDeliveries || [])
+            .filter((d) => d.supplierId === "parent-company" && d.confirmed)
+            .forEach((d) => {
+              const dt = new Date(d.date);
+              if (dt >= from && dt <= to) {
+                events.push({
+                  date: d.date,
+                  type: "توريد وقود",
+                  label: d.fuelName || "وقود",
+                  debit: d.totalCost || 0,
+                  credit: 0,
+                });
+              }
+            });
+
+          (pc.rents || []).forEach((r) => {
+            const d = new Date(r.date);
+            if (d >= from && d <= to) {
+              events.push({
+                date: r.date,
+                type: "إيجار",
+                label: `${r.desc || "—"} (حصة الشركة ${fmtPC(r.pcShare)} ج / حصتك ${fmtPC(r.myShare)} ج)`,
+                debit: 0,
+                credit: r.pcShare || 0,
+              });
+            }
+          });
+
+          (pc.payments || [])
+            .filter((p) => p.confirmed)
+            .forEach((p) => {
+              const d = new Date(p.date);
+              if (d >= from && d <= to) {
+                const mLabel =
+                  {
+                    tomcard: "توم كارد",
+                    visa: "فيزا",
+                    deposit: "إيداع",
+                    "rent-deduction": "خصم إيجار",
+                  }[p.method] || p.method;
+                events.push({
+                  date: p.date,
+                  type: "دفعة",
+                  label: `${mLabel} — ${p.note || ""}`,
+                  debit: 0,
+                  credit: p.amount || 0,
+                });
+              }
+            });
+
+          events.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+          let totalDebit = 0,
+            totalCredit = 0,
+            running = 0;
+          const rowsHTML = events
+            .map((ev) => {
+              totalDebit += ev.debit;
+              totalCredit += ev.credit;
+              running += ev.debit - ev.credit;
+              return `<tr>
+              <td>${new Date(ev.date).toLocaleDateString("ar-EG")}</td>
+              <td><span class="tag tag-blue">${ev.type}</span></td>
+              <td>${ev.label}</td>
+              <td style="font-family:var(--mono);color:var(--red)">${ev.debit > 0 ? fmtPC(ev.debit) + " ج" : "—"}</td>
+              <td style="font-family:var(--mono);color:var(--green)">${ev.credit > 0 ? fmtPC(ev.credit) + " ج" : "—"}</td>
+              <td style="font-family:var(--mono);font-weight:700;color:${running > 0 ? "var(--red)" : "var(--green)"}">${fmtPC(running)} ج</td>
+            </tr>`;
+            })
+            .join("");
+
+          const container = document.getElementById("pc-report-content");
+          if (!container) return;
+          container.innerHTML = `
+            <div style="font-size:14px;font-weight:700;color:var(--accent);margin-bottom:12px">📅 ${label}</div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px">
+              <div style="background:var(--surface2);border-radius:8px;padding:12px;text-align:center">
+                <div style="font-size:11px;color:var(--text3);margin-bottom:4px">إجمالي المديونية في الفترة</div>
+                <div style="font-family:var(--mono);font-size:18px;font-weight:700;color:var(--red)">${fmtPC(totalDebit)} ج</div>
+              </div>
+              <div style="background:var(--surface2);border-radius:8px;padding:12px;text-align:center">
+                <div style="font-size:11px;color:var(--text3);margin-bottom:4px">إجمالي المسدّد / المخصوم</div>
+                <div style="font-family:var(--mono);font-size:18px;font-weight:700;color:var(--green)">${fmtPC(totalCredit)} ج</div>
+              </div>
+              <div style="background:var(--surface2);border-radius:8px;padding:12px;text-align:center">
+                <div style="font-size:11px;color:var(--text3);margin-bottom:4px">صافي الفترة</div>
+                <div style="font-family:var(--mono);font-size:18px;font-weight:700;color:${running > 0 ? "var(--red)" : "var(--green)"}">${fmtPC(running)} ج</div>
+              </div>
+            </div>
+            ${events.length === 0 ? '<div style="text-align:center;color:var(--text3);padding:30px">لا توجد حركات في هذه الفترة</div>' : '<table class="readings-table"><thead><tr><th>التاريخ</th><th>النوع</th><th>البيان</th><th>مدين</th><th>دائن</th><th>الرصيد</th></tr></thead><tbody>' + rowsHTML + "</tbody></table>"}
+          `;
+        };
+
+        window.printPCReport = function () {
+          const content = document.getElementById("pc-report-content");
+          if (!content) return;
+          const period =
+            document.getElementById("pc-report-period")?.value || "";
+          const periodLabels = {
+            daily: "يومي",
+            weekly: "أسبوعي",
+            monthly: "شهري",
+            yearly: "سنوي",
+          };
+          const w = window.open("", "_blank");
+          w.document
+            .write(`<html dir="rtl"><head><title>تقرير الشركة الأم</title>
+            <style>
+              body{font-family:sans-serif;padding:24px;font-size:13px}
+              table{width:100%;border-collapse:collapse;margin:12px 0}
+              th,td{border:1px solid #ddd;padding:8px;text-align:right;font-size:12px}
+              th{background:#f0f0f0;font-weight:700}
+              .footer{margin-top:24px;font-size:11px;color:#888;display:flex;justify-content:space-between}
+            </style></head>
+            <body>
+              <h2>📊 تقرير الشركة الأم — ${periodLabels[period] || period}</h2>
+              ${content.innerHTML}
+              <div class="footer">
+                <span>طُبع: ${new Date().toLocaleString("ar-EG")}</span>
+                <span>نظام إدارة محطة الوقود</span>
+              </div>
+            </body></html>`);
+          w.document.close();
+          w.print();
+        };
+
+        window.openPCRentModal = function () {
+          document.getElementById("pc-rent-date").value = new Date()
+            .toISOString()
+            .split("T")[0];
+          document.getElementById("pc-rent-total").value = "";
+          document.getElementById("pc-rent-desc").value = "";
+          document.getElementById("pc-rent-pct").value = "50";
+          document.getElementById("pc-rent-pc-share").value = "";
+          document.getElementById("pc-rent-my-share").value = "";
+          openModal("pc-rent-modal");
+        };
+
+        window.calcPCRentSplit = function () {
+          const total =
+            parseFloat(document.getElementById("pc-rent-total").value) || 0;
+          const pct =
+            parseFloat(document.getElementById("pc-rent-pct").value) || 50;
+          const pcShare = (total * pct) / 100;
+          document.getElementById("pc-rent-pc-share").value =
+            fmtPC(pcShare) + " ج";
+          document.getElementById("pc-rent-my-share").value =
+            fmtPC(total - pcShare) + " ج";
+        };
+
+        window.savePCRent = function () {
+          const total =
+            parseFloat(document.getElementById("pc-rent-total").value) || 0;
+          if (total <= 0) {
+            showToast("أدخل مبلغ الإيجار", "error");
+            return;
+          }
+          const pct =
+            parseFloat(document.getElementById("pc-rent-pct").value) || 50;
+          const pcShare = (total * pct) / 100;
+          const myShare = total - pcShare;
+          const rentDate = document.getElementById("pc-rent-date").value;
+          const rentDesc = document.getElementById("pc-rent-desc").value.trim();
+          const pc = getPC();
+          const rentId = "PCR-" + Date.now();
+          // الإيجار دائماً بيتسجل بحصتين
+          pc.rents.push({
+            id: rentId,
+            date: rentDate,
+            desc: rentDesc,
+            total,
+            pcPct: pct,
+            pcShare,
+            myShare,
+            status: "paid", // حصة الشركة الأم بتتخصم من مديونيتي فوراً
+          });
+
+          // ✅ حصة "أنا" → تنزل مصروف من الخزنة
+          if (myShare > 0) {
+            if (!DB.expenses) DB.expenses = [];
+            DB.expenses.push({
+              id: "EXP-RENT-" + Date.now(),
+              date: rentDate,
+              category: "إيجار",
+              desc: `حصتي في الإيجار — ${rentDesc || ""}`,
+              amount: myShare,
+              source: "pc-rent",
+              rentId,
+            });
+          }
+
+          // ✅ حصة الشركة الأم → تُخصم من المديونية فوراً (تُضاف كدفعة مؤكدة)
+          // يعني لو مديونيتي 1000 والإيجار 1000 (حصة الشركة 500) → المديونية تبقى 500
+          if (pcShare > 0) {
+            if (!pc.payments) pc.payments = [];
+            pc.payments.push({
+              id: "PAY-RENT-" + Date.now(),
+              date: rentDate,
+              amount: pcShare,
+              method: "rent-deduction",
+              note: `خصم إيجار — ${rentDesc || ""} (${pct}% من ${fmtPC(total)} ج)`,
+              confirmed: true,
+              source: "rent",
+              rentId,
+            });
+          }
+
+          saveDB();
+          closeModal("pc-rent-modal");
+          renderParentCompanyPage();
+          if (typeof renderTreasury === "function") renderTreasury();
+          const myShareMsg =
+            myShare > 0
+              ? ` — حصتك ${fmtPC(myShare)} ج نزلت مصروف من الخزنة`
+              : "";
+          const pcShareMsg =
+            pcShare > 0
+              ? ` — حصة الشركة الأم ${fmtPC(pcShare)} ج خُصمت من مديونيتك`
+              : "";
+          showToast(`✅ تم حفظ الإيجار${myShareMsg}${pcShareMsg}`, "success");
+        };
+
+        window.deletePCRent = function (id) {
+          if (
+            !confirm(
+              "هل تريد حذف هذا الإيجار؟ سيتم استرجاع الخصم من المديونية.",
+            )
+          )
+            return;
+          const pc = getPC();
+          const rent = pc.rents.find((r) => r.id === id);
+          pc.rents = pc.rents.filter((r) => r.id !== id);
+          // احذف المصروف المرتبط (حصتي) من الخزنة
+          if (rent) {
+            DB.expenses = (DB.expenses || []).filter((e) => e.rentId !== id);
+            // احذف الدفعة المرتبطة (خصم المديونية)
+            pc.payments = (pc.payments || []).filter((p) => p.rentId !== id);
+          }
+          saveDB();
+          renderParentCompanyPage();
+          if (typeof renderTreasury === "function") renderTreasury();
+          showToast("🗑 تم الحذف وتعديل الخزنة والمديونية", "info");
+        };
+
+        // ─── طباعة أي قسم في صفحة الشركة الأم ───────────────────
+        window.printPCSection = function (section) {
+          const pc = getPC();
+          const titles = {
+            invoices: "🧾 فواتير الشركة الأم",
+            deliveries: "🚛 توريدات الوقود",
+            rents: "🏠 الإيجارات المشتركة",
+            payments: "💳 سجل المدفوعات",
+            transfers: "📲 تحويلات فيزا/توم كارد",
+          };
+          const title = titles[section] || section;
+          let html = "";
+
+          if (section === "invoices") {
+            html = `<table><thead><tr><th>التاريخ</th><th>رقم الفاتورة</th><th>البيان</th><th>المبلغ</th><th>طريقة الدفع</th><th>الحالة</th></tr></thead><tbody>
+              ${[...(pc.invoices || [])]
+                .reverse()
+                .map(
+                  (inv) => `<tr>
+                <td>${new Date(inv.date).toLocaleDateString("ar-EG")}</td>
+                <td>${inv.invoiceNo || "—"}</td>
+                <td>${inv.desc || "—"}</td>
+                <td>${fmtPC(inv.amount)} ج</td>
+                <td>${{ pending: "آجل", cash: "كاش", deposit: "إيداع" }[inv.payMethod] || inv.payMethod}</td>
+                <td>${inv.payMethod === "pending" ? "مستحقة" : "مدفوعة"}</td>
+              </tr>`,
+                )
+                .join("")}
+              </tbody></table>
+              <p><strong>الإجمالي:</strong> ${fmtPC((pc.invoices || []).reduce((s, i) => s + i.amount, 0))} ج</p>`;
+          } else if (section === "rents") {
+            html = `<table><thead><tr><th>التاريخ</th><th>البيان</th><th>الإجمالي</th><th>حصة الشركة الأم</th><th>حصتي</th><th>الحالة</th></tr></thead><tbody>
+              ${[...(pc.rents || [])]
+                .reverse()
+                .map(
+                  (r) => `<tr>
+                <td>${new Date(r.date).toLocaleDateString("ar-EG")}</td>
+                <td>${r.desc || "—"}</td>
+                <td>${fmtPC(r.total)} ج</td>
+                <td>${fmtPC(r.pcShare)} ج (${r.pcPct}%)</td>
+                <td>${fmtPC(r.myShare)} ج</td>
+                <td>${r.status === "paid" ? "مدفوع" : "معلق"}</td>
+              </tr>`,
+                )
+                .join("")}
+              </tbody></table>
+              <p><strong>إجمالي حصة الشركة الأم:</strong> ${fmtPC((pc.rents || []).reduce((s, r) => s + r.pcShare, 0))} ج — <strong>إجمالي حصتي:</strong> ${fmtPC((pc.rents || []).reduce((s, r) => s + r.myShare, 0))} ج</p>`;
+          } else if (section === "payments") {
+            const mLabel = {
+              tomcard: "توم كارد",
+              visa: "فيزا",
+              deposit: "إيداع",
+              cash: "كاش",
+            };
+            html = `<table><thead><tr><th>التاريخ</th><th>المبلغ</th><th>طريقة الدفع</th><th>ملاحظة</th><th>الحالة</th></tr></thead><tbody>
+              ${[...(pc.payments || [])]
+                .reverse()
+                .map(
+                  (p) => `<tr>
+                <td>${new Date(p.date).toLocaleDateString("ar-EG")}</td>
+                <td>${fmtPC(p.amount)} ج</td>
+                <td>${mLabel[p.method] || p.method}</td>
+                <td>${p.note || "—"}</td>
+                <td>${p.confirmed ? "مؤكد" : "بانتظار التأكيد"}</td>
+              </tr>`,
+                )
+                .join("")}
+              </tbody></table>
+              <p><strong>إجمالي المدفوع (مؤكد):</strong> ${fmtPC((pc.payments || []).filter((p) => p.confirmed).reduce((s, p) => s + p.amount, 0))} ج</p>`;
+          } else if (section === "deliveries") {
+            const deliveries = (DB.fuelDeliveries || []).filter(
+              (d) => d.supplierId === "parent-company",
+            );
+            html = `<table><thead><tr><th>التاريخ</th><th>الوقود</th><th>الكمية</th><th>السعر/لتر</th><th>الإجمالي</th><th>الحالة</th></tr></thead><tbody>
+              ${[...deliveries]
+                .reverse()
+                .map(
+                  (d) => `<tr>
+                <td>${new Date(d.date).toLocaleDateString("ar-EG")}</td>
+                <td>${d.fuelName || "—"}</td>
+                <td>${fmtPC(d.liters || d.qty || 0)} ل</td>
+                <td>${fmtPC(d.pricePerLiter || d.unitPrice || 0)} ج</td>
+                <td>${fmtPC(d.totalCost || d.total || 0)} ج</td>
+                <td>${d.confirmed ? "مؤكد" : "بانتظار التأكيد"}</td>
+              </tr>`,
+                )
+                .join("")}
+              </tbody></table>`;
+          } else if (section === "transfers") {
+            const trs = (pc.payments || []).filter(
+              (p) => p.sourceTxId && p.confirmed,
+            );
+            html = `<table><thead><tr><th>التاريخ</th><th>المبلغ</th><th>النوع</th><th>ملاحظة</th></tr></thead><tbody>
+              ${trs
+                .map(
+                  (p) => `<tr>
+                <td>${new Date(p.date).toLocaleDateString("ar-EG")}</td>
+                <td>${fmtPC(p.amount)} ج</td>
+                <td>${p.method === "tomcard" ? "توم كارد" : "فيزا"}</td>
+                <td>${p.note || "—"}</td>
+              </tr>`,
+                )
+                .join("")}
+              </tbody></table>
+              <p><strong>الإجمالي:</strong> ${fmtPC(trs.reduce((s, p) => s + p.amount, 0))} ج</p>`;
+          }
+
+          const w = window.open("", "_blank");
+          w.document.write(`<html dir="rtl"><head><title>${title}</title>
+            <style>body{font-family:sans-serif;padding:24px;font-size:13px}
+            h2{margin-bottom:16px}
+            table{width:100%;border-collapse:collapse;margin-bottom:12px}
+            th,td{border:1px solid #ccc;padding:8px 10px;text-align:right;font-size:12px}
+            th{background:#f5f5f5;font-weight:700}
+            tr:nth-child(even){background:#fafafa}
+            p{font-size:13px;font-weight:600;margin-top:8px}
+            .footer{margin-top:20px;font-size:11px;color:#888;border-top:1px solid #eee;padding-top:8px}
+            </style></head>
+            <body>
+              <h2>${title}</h2>
+              <p style="font-size:11px;color:#666;margin-bottom:12px">طُبع في: ${new Date().toLocaleString("ar-EG")}</p>
+              ${html}
+              <div class="footer">نظام إدارة محطة الوقود</div>
+            </body></html>`);
+          w.document.close();
+          w.print();
+        };
+
+        window.openPCPaymentModal = function () {
+          document.getElementById("pc-pay-date").value = new Date()
+            .toISOString()
+            .split("T")[0];
+          document.getElementById("pc-pay-amount").value = "";
+          document.getElementById("pc-pay-method").value = "deposit";
+          document.getElementById("pc-pay-note").value = "";
+          // reset deposit fields
+          [
+            "pc-pay-receipt",
+            "pc-pay-bank",
+            "pc-pay-account",
+            "pc-pay-person",
+          ].forEach((id) => {
+            const el = document.getElementById(id);
+            if (el) el.value = "";
+          });
+          // Show current balance
+          const balance = calcPCBalance();
+          document.getElementById("pc-pay-due-display").textContent =
+            fmtPC(balance) + " ج";
+          // reset pay method buttons - default deposit
+          document
+            .querySelectorAll("#pc-payment-modal .pay-method")
+            .forEach((b) => b.classList.remove("selected"));
+          const depositBtn = document.getElementById("pc-pay-m-deposit");
+          if (depositBtn) depositBtn.classList.add("selected");
+          // show deposit fields by default
+          const depositFields = document.getElementById(
+            "pc-pay-deposit-fields",
+          );
+          if (depositFields) depositFields.style.display = "block";
+          // populate persons datalist
+          const persons = [
+            ...new Set(
+              (DB.bankMovements || [])
+                .filter((b) => b.person && b.person !== "تسجيل تلقائي")
+                .map((b) => b.person),
+            ),
+          ];
+          const dl = document.getElementById("pc-persons-list");
+          if (dl)
+            dl.innerHTML = persons
+              .map((p) => `<option value="${p}"></option>`)
+              .join("");
+          openModal("pc-payment-modal");
+        };
+
+        window.selectPCPayMethod = function (method, el) {
+          document
+            .querySelectorAll("#pc-payment-modal .pay-method")
+            .forEach((b) => b.classList.remove("selected"));
+          el.classList.add("selected");
+          document.getElementById("pc-pay-method").value = method;
+          // إظهار/إخفاء حقول الإيداع
+          const depositFields = document.getElementById(
+            "pc-pay-deposit-fields",
+          );
+          if (depositFields)
+            depositFields.style.display =
+              method === "deposit" ? "block" : "none";
+        };
+
+        window.savePCPayment = function () {
+          const amount =
+            parseFloat(document.getElementById("pc-pay-amount").value) || 0;
+          if (amount <= 0) {
+            showToast("أدخل مبلغ الدفعة", "error");
+            return;
+          }
+          const method = document.getElementById("pc-pay-method").value;
+          const payDate = document.getElementById("pc-pay-date").value;
+          const note = document.getElementById("pc-pay-note").value.trim();
+          const pc = getPC();
+          const pId = "PCP-" + Date.now();
+
+          // بيانات الإيداع البنكي
+          const receipt =
+            (document.getElementById("pc-pay-receipt") || {}).value?.trim() ||
+            "";
+          const bank =
+            (document.getElementById("pc-pay-bank") || {}).value?.trim() || "";
+          const account =
+            (document.getElementById("pc-pay-account") || {}).value?.trim() ||
+            "";
+          const person =
+            (document.getElementById("pc-pay-person") || {}).value?.trim() ||
+            "";
+
+          pc.payments.push({
+            id: pId,
+            date: payDate,
+            amount,
+            method,
+            note,
+            confirmed: true, // إيداع وكاش = مؤكد فوراً
+            // بيانات الإيداع
+            receipt,
+            bank,
+            account,
+            person,
+          });
+
+          // ✅ كاش → ينزل من الخزنة فوراً كمصروف
+          if (method === "cash") {
+            if (!DB.expenses) DB.expenses = [];
+            DB.expenses.push({
+              id: "EXP-PC-" + Date.now(),
+              date: payDate,
+              category: "سداد شركة أم",
+              desc: `دفعة كاش للشركة الأم`,
+              amount,
+              source: "pc-payment",
+              pcPaymentId: pId,
+            });
+          }
+
+          // ✅ إيداع → ينزل من الخزنة + يتسجل في البنك بالتفاصيل الكاملة
+          if (method === "deposit") {
+            const bmId = "BM-PC-" + Date.now();
+            const bankName = bank || "إيداع للشركة الأم";
+            if (!DB.deposits) DB.deposits = [];
+            DB.deposits.push({
+              id: "D-PC-" + Date.now(),
+              date: payDate,
+              type: "deposit",
+              amount,
+              bank: bankName,
+              ref: pId,
+              source: "parent-company",
+              bankMovementId: bmId,
+              note: `سداد مديونية الشركة الأم — إيداع بنكي${receipt ? " — إيصال: " + receipt : ""}`,
+            });
+            if (!DB.bankMovements) DB.bankMovements = [];
+            DB.bankMovements.push({
+              id: bmId,
+              date: payDate + "T00:00:00.000Z",
+              type: "deposit",
+              amount,
+              bank: bankName,
+              account: account,
+              receipt: receipt || pId,
+              person: person || "غير محدد",
+              note: note || "سداد مديونية الشركة الأم",
+              source: "parent-company",
+              pcPaymentId: pId,
+            });
+          }
+
+          saveDB();
+          closeModal("pc-payment-modal");
+          renderParentCompanyPage();
+          if (typeof renderTreasury === "function") renderTreasury();
+          const msgs = {
+            cash: "💵 نُزل كاش من الخزنة",
+            deposit: "🏦 إيداع بنكي + خُصم من الخزنة",
+          };
+          showToast(
+            `✅ تم تسجيل الدفعة (${fmtPC(amount)} ج) — ${msgs[method] || method}`,
+            "success",
+          );
+        };
+
+        window.confirmPCPayment = function (id) {
+          const pc = getPC();
+          const p = pc.payments.find((x) => x.id === id);
+          if (!p) return;
+          p.confirmed = true;
+          if (p.method === "deposit") {
+            if (!DB.deposits) DB.deposits = [];
+            const bmId2 = "BM-PC-" + Date.now();
+            DB.deposits.push({
+              id: "D" + Date.now(),
+              date: p.date,
+              type: "withdrawal",
+              amount: p.amount,
+              bank: "إيداع للشركة الأم",
+              ref: id,
+              source: "parent-company",
+              bankMovementId: bmId2,
+              note: "سداد مديونية الشركة الأم (مؤكد)",
+            });
+            // ✅ سجّل أيضاً في الإيداعات البنكية
+            if (!DB.bankMovements) DB.bankMovements = [];
+            DB.bankMovements.push({
+              id: bmId2,
+              date: p.date + "T00:00:00.000Z",
+              type: "deposit",
+              amount: p.amount,
+              bank: "إيداع للشركة الأم",
+              account: "",
+              receipt: id,
+              person: "تسجيل تلقائي",
+              note: "سداد مديونية الشركة الأم — مؤكد لاحقاً",
+              source: "parent-company",
+              pcPaymentId: id,
+            });
+          }
+          saveDB();
+          renderParentCompanyPage();
+          showToast("✅ تأكيد الوصول — نزل من المديونية", "success");
+        };
+
+        window.confirmPCDelivery = function (id) {
+          const d = (DB.fuelDeliveries || []).find((x) => x.id === id);
+          if (!d) return;
+          d.confirmed = true;
+          saveDB();
+          renderParentCompanyPage();
+          showToast("✅ تأكيد الوصول — التوريد أضيف للمديونية", "success");
+        };
+
+        window.deletePCPayment = function (id) {
+          const pc = getPC();
+          const pay = (pc.payments || []).find((p) => p.id === id);
+          // احذف المصروف المرتبط (كاش)
+          DB.expenses = (DB.expenses || []).filter((e) => e.pcPaymentId !== id);
+          // احذف الحركة البنكية المرتبطة (إيداع)
+          const bm = (DB.bankMovements || []).find((m) => m.pcPaymentId === id);
+          if (bm) {
+            DB.bankMovements = DB.bankMovements.filter(
+              (m) => m.pcPaymentId !== id,
+            );
+            DB.deposits = (DB.deposits || []).filter((d) => d.ref !== id);
+          }
+          pc.payments = pc.payments.filter((p) => p.id !== id);
+          saveDB();
+          renderParentCompanyPage();
+          if (typeof renderTreasury === "function") renderTreasury();
+          showToast("🗑 تم الحذف وتعديل الخزنة", "info");
+        };
+
+        // طباعة كشف الحساب
+        window.printPCStatement = function () {
+          const content = document.getElementById(
+            "pc-statement-content",
+          ).innerHTML;
+          const w = window.open("", "_blank");
+          w.document
+            .write(`<html dir="rtl"><head><title>كشف حساب الشركة الأم</title>
+            <style>body{font-family:sans-serif;padding:20px}table{width:100%;border-collapse:collapse}
+            th,td{border:1px solid #ccc;padding:8px 10px;text-align:right;font-size:12px}
+            th{background:#f5f5f5;font-weight:700}</style></head>
+            <body><h2>كشف حساب الشركة الأم</h2>${content}</body></html>`);
+          w.document.close();
+          w.print();
+        };
+
+        // ─── ربط توريدات الوقود: إضافة خيار "الشركة الأم" في قوائم المورد ───
+        // هنضيف "الشركة الأم" كـ supplier وهمي بـ id = "parent-company"
+        const _origRenderFuelDeliveries = window.renderFuelDeliveries;
+        if (_origRenderFuelDeliveries) {
+          window.renderFuelDeliveries = function () {
+            _origRenderFuelDeliveries();
+            // inject parent company into supplier selects inside fuel-deliveries page
+            setTimeout(() => {
+              ["delivery-supplier-select"].forEach((selId) => {
+                const sel = document.getElementById(selId);
+                if (
+                  sel &&
+                  !sel.querySelector("option[value='parent-company']")
+                ) {
+                  const opt = document.createElement("option");
+                  opt.value = "parent-company";
+                  opt.textContent = "🏛️ الشركة الأم";
+                  sel.insertBefore(opt, sel.children[1]); // بعد خيار "اختر المورد"
+                }
+              });
+            }, 200);
+          };
+        }
+
+        // ─── Patch V45 fuel delivery to handle parent-company as supplier ───────
+        const _origV44Save = window.v44SaveFuelDelivery;
+        if (_origV44Save) {
+          window.v44SaveFuelDelivery = function () {
+            const supplierId = document.getElementById(
+              "delivery-supplier-select",
+            )?.value;
+            if (supplierId !== "parent-company") {
+              return _origV44Save();
+            }
+            // Handle parent-company delivery
+            const tankId = document.getElementById(
+              "delivery-tank-select",
+            )?.value;
+            const qty =
+              parseFloat(document.getElementById("delivery-qty")?.value) || 0;
+            const price =
+              parseFloat(document.getElementById("delivery-price")?.value) || 0;
+            const payMethod = document.getElementById(
+              "delivery-payment-method",
+            )?.value;
+            const invoice = document
+              .getElementById("delivery-invoice")
+              ?.value.trim();
+            const dateVal =
+              document.getElementById("delivery-date")?.value ||
+              new Date().toISOString();
+            if (!tankId) {
+              showToast("اختر الخزان", "error");
+              return;
+            }
+            if (qty <= 0) {
+              showToast("أدخل كمية صحيحة", "error");
+              return;
+            }
+
+            const tank = tankById(tankId);
+            const fuel = fuelById(tank.fuelId);
+            const total = qty * price;
+            tank.level = Math.min(tank.capacity, tank.level + qty);
+            if (price > 0 && fuel) fuel.costPrice = price;
+
+            const deliveryId = id();
+            const confirmed = payMethod === "credit" ? false : true;
+
+            if (!DB.fuelDeliveries) DB.fuelDeliveries = [];
+            DB.fuelDeliveries.push({
+              id: deliveryId,
+              date: new Date(dateVal).toISOString(),
+              tankId,
+              qty,
+              liters: qty,
+              unitPrice: price,
+              pricePerLiter: price,
+              totalCost: total,
+              total,
+              supplierId: "parent-company",
+              supplier: "الشركة الأم",
+              fuelName: fuel ? fuel.name : "وقود",
+              invoice,
+              payMethod,
+              status: payMethod === "credit" ? "pending" : "paid",
+              confirmed, // لما يتأكد الوصول تنزل من المديونية
+            });
+
+            saveDB();
+            renderFuelDeliveries();
+            const payMsg =
+              payMethod === "credit"
+                ? "يُنتظر تأكيد وصوله للشركة الأم"
+                : "مسجّل ومؤكد";
+            showToast(
+              `✅ تم توريد ${qty} لتر من الشركة الأم (${fmtPC(total)} ج) - ${payMsg}`,
+              "success",
+            );
+          };
+        }
+        const _origRenderPurchases = window.renderPurchases;
+        if (_origRenderPurchases) {
+          window.renderPurchases = function () {
+            _origRenderPurchases();
+            setTimeout(() => {
+              const sel = document.getElementById("purchase-supplier-select");
+              if (sel && !sel.querySelector("option[value='parent-company']")) {
+                const opt = document.createElement("option");
+                opt.value = "parent-company";
+                opt.textContent = "🏛️ الشركة الأم";
+                sel.appendChild(opt);
+              }
+            }, 100);
+          };
+        }
+
+        // ─── إعداد: هل التحويلات بتروح للشركة الأم؟ ───
+        window.savePCTransferSetting = function (val) {
+          if (!DB.parentCompany)
+            DB.parentCompany = { invoices: [], payments: [], rents: [] };
+          DB.parentCompany.transferGoesToPC = val;
+          saveDB();
+          const lbl = document.getElementById("pc-transfer-status-label");
+          if (lbl)
+            lbl.textContent = val
+              ? "✅ مفعّل — كل تأكيد وصول فيزا/توم كارد هيخصم من المديونية تلقائياً"
+              : "⏸ معطّل — التحويلات لن تؤثر على المديونية";
+          showToast(
+            val
+              ? "✅ تم تفعيل خصم التحويلات من مديونية الشركة الأم"
+              : "⏸ تم تعطيل خصم التحويلات",
+            "success",
+          );
+        };
+
+        // ─── تاب التحويلات في صفحة الشركة الأم ───
+        window.renderPCTransfersTab = function () {
+          const tbody = document.getElementById("pc-transfers-tbody");
+          if (!tbody) return;
+          const pc = DB.parentCompany || {};
+          // التحويلات المخصومة من المديونية = الدفعات التي مصدرها sourceTxId
+          const transferPayments = (pc.payments || []).filter(
+            (p) => p.sourceTxId && p.confirmed,
+          );
+          let total = 0;
+          if (!transferPayments.length) {
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:20px">لا توجد تحويلات مؤكدة بعد</td></tr>`;
+            const badge = document.getElementById("pc-transfers-total-badge");
+            if (badge) badge.textContent = "0 ج";
+            return;
+          }
+          tbody.innerHTML = transferPayments
+            .sort((a, b) => new Date(b.date) - new Date(a.date))
+            .map((p) => {
+              total += p.amount;
+              const methodLabel =
+                p.method === "tomcard" ? "📱 توم كارد" : "💳 فيزا";
+              return `<tr>
+                <td>${p.date ? p.date.split("T")[0] : "—"}</td>
+                <td style="font-family:var(--mono);color:var(--green);font-weight:700">${fmtPC(p.amount)} ج</td>
+                <td><span class="tag tag-blue">${methodLabel}</span></td>
+                <td style="color:var(--text3);font-size:12px">${p.note || "—"}</td>
+                <td><span class="tag tag-green">✅ مخصوم من المديونية</span></td>
+              </tr>`;
+            })
+            .join("");
+          const badge = document.getElementById("pc-transfers-total-badge");
+          if (badge) badge.textContent = `إجمالي: ${fmtPC(total)} ج`;
+        };
+
+        // ─── تحميل إعداد التحويلات عند فتح الصفحة ───
+        const _origRenderPC = window.renderParentCompanyPage;
+        window.renderParentCompanyPage = function () {
+          _origRenderPC();
+          // حدّث حالة checkbox الإعداد
+          const toggle = document.getElementById("pc-transfer-toggle");
+          const lbl = document.getElementById("pc-transfer-status-label");
+          if (toggle) {
+            const val = (DB.parentCompany || {}).transferGoesToPC !== false;
+            toggle.checked = val;
+            if (lbl)
+              lbl.textContent = val
+                ? "✅ مفعّل — كل تأكيد وصول فيزا/توم كارد هيخصم من المديونية تلقائياً"
+                : "⏸ معطّل";
+          }
+        };
+
+        // ─── طباعة فاتورة واحدة بالتفصيل ────────────────────────
+        window.printSinglePCInvoice = function (id) {
+          const pc = getPC();
+          const inv = (pc.invoices || []).find((i) => i.id === id);
+          if (!inv) return;
+          const payLabel =
+            { pending: "آجل (مديونية)", cash: "كاش", deposit: "إيداع بنكي" }[
+              inv.payMethod
+            ] || inv.payMethod;
+          const itemsHTML =
+            (inv.items || []).length > 0
+              ? `<table><thead><tr><th>الصنف</th><th>الكمية</th><th>السعر/وحدة</th><th>الإجمالي</th></tr></thead>
+              <tbody>${inv.items.map((it) => `<tr><td>${it.name}</td><td style="text-align:center">${it.qty}</td><td style="text-align:center">${fmtPC(it.price)} ج</td><td style="text-align:left;font-weight:700">${fmtPC(it.total)} ج</td></tr>`).join("")}</tbody></table>`
+              : `<p style="color:#666">لا توجد أصناف مفصّلة</p>`;
+
+          const w = window.open("", "_blank");
+          w.document
+            .write(`<html dir="rtl"><head><title>فاتورة ${inv.invoiceNo || id}</title>
+            <style>
+              body{font-family:sans-serif;padding:32px;font-size:13px;max-width:700px;margin:auto}
+              .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid #333}
+              .inv-title{font-size:22px;font-weight:700}
+              .inv-meta{font-size:12px;color:#555;line-height:1.8}
+              table{width:100%;border-collapse:collapse;margin:16px 0}
+              th,td{border:1px solid #ddd;padding:8px 12px;text-align:right;font-size:12px}
+              th{background:#f0f0f0;font-weight:700}
+              .total-row{background:#f9f9f9;font-weight:700;font-size:14px}
+              .footer{margin-top:32px;padding-top:12px;border-top:1px solid #eee;font-size:11px;color:#888;display:flex;justify-content:space-between}
+              .status-badge{display:inline-block;padding:4px 12px;border-radius:4px;font-weight:700;font-size:12px}
+              .pending{background:#fef3c7;color:#92400e}.paid{background:#d1fae5;color:#065f46}
+            </style></head>
+            <body>
+              <div class="header">
+                <div class="inv-title">🧾 فاتورة — الشركة الأم</div>
+                <div class="inv-meta">
+                  <div><strong>رقم الفاتورة:</strong> ${inv.invoiceNo || "—"}</div>
+                  <div><strong>التاريخ:</strong> ${new Date(inv.date).toLocaleDateString("ar-EG")}</div>
+                </div>
+              </div>
+              <div style="margin-bottom:16px">
+                <div><strong>البيان:</strong> ${inv.desc || "—"}</div>
+                <div style="margin-top:4px"><strong>طريقة الدفع:</strong> ${payLabel}</div>
+                <div style="margin-top:4px"><strong>الحالة:</strong> <span class="status-badge ${inv.payMethod === "pending" ? "pending" : "paid"}">${inv.payMethod === "pending" ? "مستحقة" : "مدفوعة"}</span></div>
+              </div>
+              <div style="font-weight:700;margin-bottom:8px">الأصناف:</div>
+              ${itemsHTML}
+              <div style="text-align:left;margin-top:12px">
+                <span style="font-size:16px;font-weight:700;background:#fff9c4;padding:8px 16px;border-radius:6px;border:2px solid #f59e0b">
+                  الإجمالي: ${fmtPC(inv.amount)} جنيه
+                </span>
+              </div>
+              <div class="footer">
+                <span>طُبع في: ${new Date().toLocaleString("ar-EG")}</span>
+                <span>نظام إدارة محطة الوقود</span>
+              </div>
+            </body></html>`);
+          w.document.close();
+          w.print();
+        };
+
+        console.log("✅ PARENT COMPANY MODULE LOADED");
       })();
     </script>
   </body>
