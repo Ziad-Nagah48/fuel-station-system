@@ -3581,12 +3581,15 @@
                 >
                   🖨 طباعة
                 </button>
-                <button
-                  class="btn btn-primary btn-sm"
-                  onclick="openPCPaymentModal()"
+                <span
+                  style="
+                    font-size: 11px;
+                    color: var(--text3);
+                    align-self: center;
+                  "
+                  >💡 الإيداعات تُضاف من صفحة "الإيداعات البنكية" — اختر "إيداع
+                  للشركة الأم"</span
                 >
-                  + تسجيل دفعة
-                </button>
               </div>
             </div>
             <div class="card">
@@ -5748,9 +5751,20 @@
               <div class="card-body">
                 <div class="form-group">
                   <label class="form-label">نوع الحركة</label>
-                  <select class="form-input form-select" id="bank-mov-type">
-                    <option value="deposit">📥 إيداع (دخل البنك)</option>
-                    <option value="withdrawal">📤 سحب (خرج من البنك)</option>
+                  <select
+                    class="form-input form-select"
+                    id="bank-mov-type"
+                    onchange="toggleBankMovPCFields()"
+                  >
+                    <option value="deposit">
+                      📥 إيداع بنكي (من الخزنة للبنك)
+                    </option>
+                    <option value="pc-deposit">
+                      🏛️ إيداع للشركة الأم (من الخزنة)
+                    </option>
+                    <option value="pay-supplier">
+                      🏢 إيداع لحساب مورد (يقلل مديونيته)
+                    </option>
                   </select>
                 </div>
                 <div class="form-group">
@@ -5820,6 +5834,33 @@
                     style="min-height: 60px; resize: vertical"
                   ></textarea>
                 </div>
+                <!-- حقول خاصة بإيداع الشركة الأم -->
+                <div
+                  id="bank-mov-pc-info"
+                  style="
+                    display: none;
+                    background: var(--surface2);
+                    border: 1px solid var(--accent);
+                    border-radius: 8px;
+                    padding: 12px;
+                    margin-bottom: 10px;
+                  "
+                >
+                  <div
+                    style="
+                      font-size: 11px;
+                      font-weight: 700;
+                      color: var(--accent);
+                      margin-bottom: 8px;
+                    "
+                  >
+                    🏛️ إيداع للشركة الأم — سيُخصم من الخزنة ويُسجل في حسابها
+                  </div>
+                  <div
+                    id="bank-mov-pc-balance"
+                    style="font-size: 12px; color: var(--text2)"
+                  ></div>
+                </div>
                 <button
                   class="btn btn-primary"
                   style="width: 100%; justify-content: center"
@@ -5842,8 +5883,9 @@
                     onchange="renderBankMovements()"
                   >
                     <option value="all">الكل</option>
-                    <option value="deposit">إيداعات فقط</option>
-                    <option value="withdrawal">سحوبات فقط</option>
+                    <option value="deposit">إيداعات بنكية</option>
+                    <option value="pc-deposit">إيداعات شركة أم</option>
+                    <option value="pay-supplier">إيداعات موردين</option>
                   </select>
                   <select
                     class="form-input"
@@ -6029,7 +6071,7 @@
           <!-- أصناف الفاتورة -->
           <div
             style="
-              margin-bottom: 8px;
+              margin-bottom: 10px;
               font-size: 12px;
               font-weight: 700;
               color: var(--text2);
@@ -6037,60 +6079,156 @@
           >
             📦 أصناف الفاتورة
           </div>
-          <div id="pc-inv-items-list" style="margin-bottom: 8px"></div>
+
+          <!-- ── صنف موجود في المخزون ── -->
           <div
             style="
-              display: grid;
-              grid-template-columns: 2fr 1fr 1fr auto;
-              gap: 8px;
-              align-items: end;
-              margin-bottom: 12px;
+              background: var(--surface2);
+              border-radius: 8px;
+              padding: 12px;
+              margin-bottom: 10px;
             "
           >
-            <div>
-              <label class="form-label" style="font-size: 11px"
-                >الصنف / البيان</label
-              >
-              <input
-                type="text"
-                class="form-input"
-                id="pc-inv-item-name"
-                placeholder="اسم الصنف أو البيان"
-              />
-            </div>
-            <div>
-              <label class="form-label" style="font-size: 11px">الكمية</label>
-              <input
-                type="number"
-                class="form-input"
-                id="pc-inv-item-qty"
-                placeholder="1"
-                min="1"
-                step="1"
-                oninput="calcPCInvItemTotal()"
-              />
-            </div>
-            <div>
-              <label class="form-label" style="font-size: 11px"
-                >السعر / الوحدة (ج)</label
-              >
-              <input
-                type="number"
-                class="form-input"
-                id="pc-inv-item-price"
-                placeholder="0.00"
-                step="0.01"
-                oninput="calcPCInvItemTotal()"
-              />
-            </div>
-            <button
-              class="btn btn-primary btn-sm"
-              onclick="addPCInvItem()"
-              style="height: 36px; white-space: nowrap"
+            <div
+              style="
+                font-size: 11px;
+                font-weight: 700;
+                color: var(--blue);
+                margin-bottom: 10px;
+              "
             >
-              + إضافة
-            </button>
+              📦 اختر من المخزون الحالي
+            </div>
+            <div
+              style="
+                display: grid;
+                grid-template-columns: 2fr 1fr 1fr auto;
+                gap: 8px;
+                align-items: end;
+              "
+            >
+              <div>
+                <label class="form-label" style="font-size: 11px">الصنف</label>
+                <select
+                  class="form-input form-select"
+                  id="pc-inv-stock-select"
+                  onchange="onPCInvStockSelect()"
+                >
+                  <option value="">-- اختر صنف --</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label" style="font-size: 11px">الكمية</label>
+                <input
+                  type="number"
+                  class="form-input"
+                  id="pc-inv-stock-qty"
+                  placeholder="1"
+                  min="1"
+                  step="1"
+                  value="1"
+                />
+              </div>
+              <div>
+                <label class="form-label" style="font-size: 11px"
+                  >سعر الشراء (ج)</label
+                >
+                <input
+                  type="number"
+                  class="form-input"
+                  id="pc-inv-stock-price"
+                  placeholder="0.00"
+                  step="0.01"
+                />
+              </div>
+              <button
+                class="btn btn-success btn-sm"
+                onclick="addPCInvItemFromStock()"
+                style="height: 36px; white-space: nowrap"
+              >
+                + إضافة
+              </button>
+            </div>
+            <div
+              id="pc-inv-stock-info"
+              style="font-size: 11px; color: var(--text3); margin-top: 6px"
+            ></div>
           </div>
+
+          <!-- ── صنف جديد غير موجود ── -->
+          <div
+            style="
+              background: var(--surface2);
+              border-radius: 8px;
+              padding: 12px;
+              margin-bottom: 10px;
+            "
+          >
+            <div
+              style="
+                font-size: 11px;
+                font-weight: 700;
+                color: var(--accent);
+                margin-bottom: 10px;
+              "
+            >
+              ✨ صنف جديد (غير موجود في المخزون)
+            </div>
+            <div
+              style="
+                display: grid;
+                grid-template-columns: 2fr 1fr 1fr auto;
+                gap: 8px;
+                align-items: end;
+              "
+            >
+              <div>
+                <label class="form-label" style="font-size: 11px"
+                  >اسم الصنف</label
+                >
+                <input
+                  type="text"
+                  class="form-input"
+                  id="pc-inv-item-name"
+                  placeholder="اكتب اسم الصنف الجديد"
+                />
+              </div>
+              <div>
+                <label class="form-label" style="font-size: 11px">الكمية</label>
+                <input
+                  type="number"
+                  class="form-input"
+                  id="pc-inv-item-qty"
+                  placeholder="1"
+                  min="1"
+                  step="1"
+                  oninput="calcPCInvItemTotal()"
+                />
+              </div>
+              <div>
+                <label class="form-label" style="font-size: 11px"
+                  >سعر الشراء (ج)</label
+                >
+                <input
+                  type="number"
+                  class="form-input"
+                  id="pc-inv-item-price"
+                  placeholder="0.00"
+                  step="0.01"
+                  oninput="calcPCInvItemTotal()"
+                />
+              </div>
+              <button
+                class="btn btn-primary btn-sm"
+                onclick="addPCInvItem()"
+                style="height: 36px; white-space: nowrap"
+              >
+                + إضافة
+              </button>
+            </div>
+          </div>
+
+          <div id="pc-inv-items-list" style="margin-bottom: 8px"></div>
           <div
             style="
               background: var(--surface2);
@@ -11913,8 +12051,23 @@
         }
 
         let filtered = DB.bankMovements.slice();
-        if (filterType !== "all")
-          filtered = filtered.filter((m) => m.type === filterType);
+        if (filterType !== "all") {
+          if (filterType === "deposit") {
+            // إيداعات بنكية عادية فقط (لا تشمل الشركة الأم والموردين)
+            filtered = filtered.filter(
+              (m) =>
+                m.type === "deposit" ||
+                m.type === "pc-deposit" ||
+                m.type === "pay-supplier",
+            );
+          } else if (filterType === "pc-deposit") {
+            filtered = filtered.filter((m) => m.type === "pc-deposit");
+          } else if (filterType === "pay-supplier") {
+            filtered = filtered.filter((m) => m.type === "pay-supplier");
+          } else {
+            filtered = filtered.filter((m) => m.type === filterType);
+          }
+        }
         if (startDate)
           filtered = filtered.filter((m) => new Date(m.date) >= startDate);
 
@@ -11923,7 +12076,15 @@
 
         // ملخص
         const totalDeposits = filtered
-          .filter((m) => m.type === "deposit")
+          .filter(
+            (m) =>
+              m.type === "deposit" ||
+              m.type === "pc-deposit" ||
+              m.type === "pay-supplier",
+          )
+          .reduce((s, m) => s + m.amount, 0);
+        const totalPCDeposits = filtered
+          .filter((m) => m.type === "pc-deposit")
           .reduce((s, m) => s + m.amount, 0);
         const totalWithdrawals = filtered
           .filter((m) => m.type === "withdrawal")
@@ -11937,6 +12098,7 @@
               <div style="font-size:11px;color:var(--text3);margin-bottom:6px">📥 إجمالي الإيداعات</div>
               <div style="font-family:var(--mono);font-size:20px;font-weight:700;color:var(--green)">${fmt(totalDeposits)}</div>
               <div style="font-size:10px;color:var(--text3)">جنيه</div>
+              ${totalPCDeposits > 0 ? `<div style="font-size:10px;color:var(--accent);margin-top:4px">منها للشركة الأم: ${fmt(totalPCDeposits)} ج</div>` : ""}
             </div>
             <div style="background:var(--surface2);border:1px solid var(--red);border-radius:8px;padding:14px;text-align:center">
               <div style="font-size:11px;color:var(--text3);margin-bottom:6px">📤 إجمالي السحوبات</div>
@@ -11976,15 +12138,27 @@
           </thead>
           <tbody>`;
         filtered.forEach((m) => {
-          const isDep = m.type === "deposit";
+          const isDep =
+            m.type === "deposit" ||
+            m.type === "pc-deposit" ||
+            m.type === "pay-supplier";
+          const typeLabel =
+            {
+              deposit: "📥 إيداع بنكي",
+              "pc-deposit": "🏛️ شركة أم",
+              "pay-supplier": "🏢 مورد",
+              withdrawal: "📤 سحب",
+            }[m.type] || (isDep ? "📥 إيداع" : "📤 سحب");
+          const typeColor = isDep ? "var(--green-dim)" : "var(--red-dim)";
+          const textColor = isDep ? "var(--green)" : "var(--red)";
           html += `<tr>
             <td style="font-size:11px;color:var(--text3)">${fmtDate(m.date)}</td>
-            <td><span style="background:${isDep ? "var(--green-dim)" : "var(--red-dim)"};color:${isDep ? "var(--green)" : "var(--red)"};border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700">${isDep ? "📥 إيداع" : "📤 سحب"}</span></td>
+            <td><span style="background:${typeColor};color:${textColor};border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700">${typeLabel}</span></td>
             <td style="font-family:var(--mono);font-weight:700;color:${isDep ? "var(--green)" : "var(--red)"}">${fmt(m.amount)} ج</td>
-            <td style="font-weight:600">${m.bank}</td>
+            <td style="font-weight:600">${m.bank || "—"}</td>
             <td style="font-family:var(--mono);font-size:11px;color:var(--text3)">${m.account || "—"}</td>
-            <td style="font-family:var(--mono);font-size:12px">${m.receipt}</td>
-            <td>${m.person}</td>
+            <td style="font-family:var(--mono);font-size:12px">${m.receipt || "—"}</td>
+            <td>${m.person || "—"}</td>
             <td style="font-size:11px;color:var(--text3);max-width:200px;white-space:normal">${m.note || "—"}</td>
             <td><button class="btn btn-danger btn-sm" onclick="deleteBankMovement('${m.id}')">🗑</button></td>
           </tr>`;
@@ -23226,26 +23400,9 @@ ${bodyHtml}
             bankBalance -
             supplierDebt;
 
-          const statsEl = document.getElementById("treasury-stats");
-          if (statsEl && !document.getElementById("capital-card")) {
-            // Prepend Capital Card
-            const capCard = document.createElement("div");
-            capCard.id = "capital-card";
-            capCard.style.cssText =
-              "grid-column:1/-1;background:linear-gradient(135deg, #1a1a2e, #3b82f6);color:#fff;border-radius:12px;padding:20px;display:flex;justify-content:space-between;align-items:center;box-shadow:0 10px 25px rgba(59,130,246,0.3)";
-            capCard.innerHTML = `
-            <div>
-              <div style="font-size:14px;color:#cbd5e1;margin-bottom:4px;font-weight:600">🏛️ إجمالي رأس مال المحطة (القيمة التقديرية للأصول)</div>
-              <div style="font-family:var(--mono);font-size:32px;font-weight:900;color:#fff">${F29(totalCapital)} <span style="font-size:14px;color:#94a3b8">جنيه</span></div>
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;text-align:left">
-              <div><div style="font-size:10px;color:#94a3b8">📦 قيمة المخزون والوقود</div><div style="font-family:var(--mono);font-size:16px;font-weight:700">${F29(fuelValue + invValue)}</div></div>
-              <div><div style="font-size:10px;color:#94a3b8">🏦 نقدية (خزنة + بنك)</div><div style="font-family:var(--mono);font-size:16px;font-weight:700">${F29(balance + bankBalance)}</div></div>
-              <div><div style="font-size:10px;color:#94a3b8">🏢 ذمم (شركات - موردين)</div><div style="font-family:var(--mono);font-size:16px;font-weight:700;color:${companyBalance - supplierDebt >= 0 ? "#86efac" : "#fca5a5"}">${companyBalance - supplierDebt >= 0 ? "+" : ""}${F29(companyBalance - supplierDebt)}</div></div>
-            </div>
-          `;
-            statsEl.parentNode.insertBefore(capCard, statsEl);
-          }
+          // capital-card مُزال بناءً على طلب المستخدم
+          const oldCapCard = document.getElementById("capital-card");
+          if (oldCapCard) oldCapCard.remove();
         };
 
         // ============================================================
@@ -23883,6 +24040,8 @@ ${bodyHtml}
             const typeLabels = {
               "cash-in": "💰 إيراد نقدي",
               deposit: "🏦 إيداع بنكي",
+              "pc-deposit": "🏛️ إيداع للشركة الأم",
+              "pay-supplier": "🏢 إيداع لمورد",
               expense: "💸 مصروف",
               withdrawal: "📤 سحب",
               collection: "✅ تحصيل",
@@ -24016,7 +24175,7 @@ ${bodyHtml}
           `;
 
             if (window.v17OpenPrintWindow)
-              window.v17OpenPrintWindow(html, "تقرير الخزينة الكامل");
+              window.v17OpenPrintWindow(body, "تقرير الخزينة الكامل");
           };
         }
 
@@ -26277,63 +26436,9 @@ ${bodyHtml}
         renderTreasury = function () {
           _origRenderTreasury();
           setTimeout(() => {
+            // capital-card مُزال
             const capCard = document.getElementById("capital-card");
-            if (capCard) {
-              const balance = calcTreasuryBalance();
-              const fuelValue = (DB.tanks || []).reduce((s, t) => {
-                const fuel = (DB.fuels || []).find((f) => f.id === t.fuelId);
-                return s + t.level * (fuel ? fuel.price : 0);
-              }, 0);
-
-              // 🔴 استخدام الدالة المصلحة
-              const invValue = (DB.inventory || []).reduce(
-                (s, item) => s + getItemValuePrice(item) * item.qty,
-                0,
-              );
-
-              const companyBalance = (DB.companies || []).reduce(
-                (s, c) => s + c.balance,
-                0,
-              );
-              let supplierDebt = 0;
-              (DB.purchases || []).forEach((p) => {
-                if (p.status === "pending") supplierDebt += p.total;
-                else if (p.status === "partial") {
-                  const paidSoFar = (p.payments || []).reduce(
-                    (a, pm) => a + pm.amount,
-                    0,
-                  );
-                  supplierDebt += p.total - paidSoFar;
-                }
-              });
-              const bankOnlyDeps = DB.bankMovements
-                .filter((m) => m.type === "deposit")
-                .reduce((s, m) => s + m.amount, 0);
-              const bankOnlyWits = DB.bankMovements
-                .filter((m) => m.type === "withdrawal")
-                .reduce((s, m) => s + m.amount, 0);
-              const bankBalance = bankOnlyDeps - bankOnlyWits;
-
-              const totalCapital =
-                balance +
-                fuelValue +
-                invValue +
-                companyBalance +
-                bankBalance -
-                supplierDebt;
-
-              capCard.innerHTML = `
-                  <div>
-                    <div style="font-size:14px;color:#cbd5e1;margin-bottom:4px;font-weight:600">🏛️ إجمالي رأس مال المحطة (القيمة التقديرية للأصول)</div>
-                    <div style="font-family:var(--mono);font-size:32px;font-weight:900;color:#fff">${F39(totalCapital)} <span style="font-size:14px;color:#94a3b8">جنيه</span></div>
-                  </div>
-                  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;text-align:left">
-                    <div><div style="font-size:10px;color:#94a3b8">📦 قيمة المخزون والوقود</div><div style="font-family:var(--mono);font-size:16px;font-weight:700">${F39(fuelValue + invValue)}</div></div>
-                    <div><div style="font-size:10px;color:#94a3b8">🏦 نقدية (خزنة + بنك)</div><div style="font-family:var(--mono);font-size:16px;font-weight:700">${F39(balance + bankBalance)}</div></div>
-                    <div><div style="font-size:10px;color:#94a3b8">🏢 ذمم (شركات - موردين)</div><div style="font-family:var(--mono);font-size:16px;font-weight:700;color:${companyBalance - supplierDebt >= 0 ? "#86efac" : "#fca5a5"}">${companyBalance - supplierDebt >= 0 ? "+" : ""}${F39(companyBalance - supplierDebt)}</div></div>
-                  </div>
-                `;
-            }
+            if (capCard) capCard.remove();
           }, 50);
         };
 
@@ -28363,17 +28468,25 @@ ${bodyHtml}
           const totalPaid = (pc.payments || [])
             .filter((p) => p.confirmed)
             .reduce((s, p) => s + (p.amount || 0), 0);
-          const pendingPayments = (pc.payments || []).filter(
-            (p) => !p.confirmed,
-          ).length;
 
-          document.getElementById("pc-stats-row").innerHTML = `
-            <div class="stat-card red">
+          // الرصيد: سالب = مديونية علينا، موجب = رصيد لصالحنا عند الشركة الأم
+          const balanceCard =
+            balance > 0
+              ? `<div class="stat-card red">
               <div class="stat-icon">🏛️</div>
               <div class="stat-label">المديونية الحالية</div>
               <div class="stat-value" style="color:var(--red);font-size:22px">${fmtPC(balance)}</div>
-              <div class="stat-sub">ج — إجمالي المستحق للشركة الأم</div>
-            </div>
+              <div class="stat-sub">ج — مستحق للشركة الأم</div>
+            </div>`
+              : `<div class="stat-card green">
+              <div class="stat-icon">🏛️</div>
+              <div class="stat-label">رصيد عند الشركة الأم</div>
+              <div class="stat-value" style="color:var(--green);font-size:22px">${fmtPC(Math.abs(balance))}</div>
+              <div class="stat-sub">ج — رصيد دائن لصالحك</div>
+            </div>`;
+
+          document.getElementById("pc-stats-row").innerHTML = `
+            ${balanceCard}
             <div class="stat-card green">
               <div class="stat-icon">✅</div>
               <div class="stat-label">إجمالي المدفوع</div>
@@ -28387,10 +28500,10 @@ ${bodyHtml}
               <div class="stat-sub">ج — ${(pc.invoices || []).length} فاتورة مسجلة</div>
             </div>
             <div class="stat-card accent">
-              <div class="stat-icon">⏳</div>
-              <div class="stat-label">دفعات بانتظار التأكيد</div>
-              <div class="stat-value" style="color:var(--accent);font-size:22px">${pendingPayments}</div>
-              <div class="stat-sub">في انتظار تأكيد الوصول</div>
+              <div class="stat-icon">📋</div>
+              <div class="stat-label">إجمالي الحركات</div>
+              <div class="stat-value" style="color:var(--accent);font-size:22px">${(pc.invoices || []).length + (pc.payments || []).length}</div>
+              <div class="stat-sub">فاتورة ودفعة مسجلة</div>
             </div>
           `;
 
@@ -29854,6 +29967,304 @@ ${bodyHtml}
         };
 
         console.log("✅ PARENT COMPANY MODULE LOADED");
+      })();
+    </script>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         V5 PATCH — تعديلات جديدة
+         1. صفحة الإيداعات: إيداع للشركة الأم + إيداع لمورد (شيل سحب)
+         2. صفحة الشركة الأم: رصيد عند الشركة الأم + شيل بانتظار التأكيد
+         3. فاتورة الشركة الأم: اختيار الأصناف من المخزون
+         4. الخزنة: إجمالي المحطة (مخزون + وقود) محسوب بدقة
+    ═══════════════════════════════════════════════════════════════ -->
+    <script>
+      (function () {
+        "use strict";
+
+        // ── Helper: toggle PC info block when type changes ──────────
+        window.toggleBankMovPCFields = function () {
+          const type = document.getElementById("bank-mov-type")?.value;
+          const pcInfo = document.getElementById("bank-mov-pc-info");
+          const supWrapper = document.getElementById(
+            "bank-mov-supplier-wrapper",
+          );
+
+          if (pcInfo) {
+            pcInfo.style.display = type === "pc-deposit" ? "block" : "none";
+            if (type === "pc-deposit") {
+              const bal = calcPCBalance ? calcPCBalance() : 0;
+              const balEl = document.getElementById("bank-mov-pc-balance");
+              if (balEl)
+                balEl.textContent =
+                  bal > 0
+                    ? `المديونية الحالية: ${bal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ج — هذا الإيداع سيُقلل المديونية`
+                    : `لا توجد مديونية — الإيداع سيُسجل رصيداً دائناً لصالحك`;
+            }
+          }
+          if (supWrapper) {
+            supWrapper.style.display =
+              type === "pay-supplier" ? "block" : "none";
+          }
+        };
+
+        // ── Override saveBankMovement to handle pc-deposit ──────────
+        const _origSaveBM = window.saveBankMovement;
+        window.saveBankMovement = function () {
+          const type = document.getElementById("bank-mov-type")?.value;
+
+          if (type === "pc-deposit") {
+            const amount =
+              parseFloat(document.getElementById("bank-mov-amount")?.value) ||
+              0;
+            const bank =
+              document.getElementById("bank-mov-bank")?.value.trim() || "";
+            const account =
+              document.getElementById("bank-mov-account")?.value.trim() || "";
+            const receipt =
+              document.getElementById("bank-mov-receipt")?.value.trim() || "";
+            const person =
+              document.getElementById("bank-mov-person")?.value.trim() || "";
+            const note =
+              document.getElementById("bank-mov-note")?.value.trim() || "";
+
+            if (amount <= 0) {
+              showToast("أدخل المبلغ", "error");
+              return;
+            }
+
+            const pId = "PCP-BM-" + Date.now();
+            const bmId = "BM-PC-" + Date.now();
+
+            // سجل الدفعة في حساب الشركة الأم
+            const pc = (DB.parentCompany = DB.parentCompany || {
+              invoices: [],
+              payments: [],
+              rents: [],
+            });
+            if (!pc.payments) pc.payments = [];
+            pc.payments.push({
+              id: pId,
+              date: new Date().toISOString(),
+              amount,
+              method: "deposit",
+              note: note || "إيداع للشركة الأم",
+              confirmed: true,
+              receipt,
+              bank,
+              account,
+              person,
+            });
+
+            // خصم من الخزنة (تُعامل كـ deposit)
+            if (!DB.deposits) DB.deposits = [];
+            DB.deposits.push({
+              id: "D-PC5-" + Date.now(),
+              date: new Date().toISOString(),
+              type: "deposit",
+              amount,
+              bank: bank || "إيداع للشركة الأم",
+              ref: receipt || pId,
+              source: "parent-company",
+              bankMovementId: bmId,
+              note: `إيداع للشركة الأم${receipt ? " — إيصال: " + receipt : ""}`,
+            });
+
+            // سجل في الحركات البنكية
+            if (!DB.bankMovements) DB.bankMovements = [];
+            DB.bankMovements.push({
+              id: bmId,
+              date: new Date().toISOString(),
+              type: "deposit",
+              amount,
+              bank: bank || "إيداع للشركة الأم",
+              account,
+              receipt: receipt || pId,
+              person: person || "غير محدد",
+              note: note || "إيداع للشركة الأم",
+              source: "parent-company",
+              pcPaymentId: pId,
+            });
+
+            saveDB();
+            if (typeof renderBankMovements === "function")
+              renderBankMovements();
+            if (typeof renderParentCompanyPage === "function")
+              renderParentCompanyPage();
+            if (typeof renderTreasury === "function") renderTreasury();
+
+            // مسح الحقول
+            document.getElementById("bank-mov-amount").value = "";
+            document.getElementById("bank-mov-bank").value = "";
+            document.getElementById("bank-mov-receipt").value = "";
+            document.getElementById("bank-mov-note").value = "";
+
+            showToast(
+              `✅ تم تسجيل إيداع ${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ج للشركة الأم — خُصم من الخزنة`,
+              "success",
+            );
+            return;
+          }
+
+          // لو pay-supplier يروح للأصلي
+          if (_origSaveBM) _origSaveBM();
+        };
+
+        // ── Patch renderBankMovements to fill supplier dropdown ──────
+        const _origRenderBM2 = window.renderBankMovements;
+        if (_origRenderBM2) {
+          window.renderBankMovements = function () {
+            _origRenderBM2();
+            setTimeout(() => {
+              // تأكد من وجود درب داون المورد
+              const typeSelect = document.getElementById("bank-mov-type");
+              if (
+                typeSelect &&
+                !document.getElementById("bank-mov-supplier-wrapper")
+              ) {
+                const supDiv = document.createElement("div");
+                supDiv.className = "form-group";
+                supDiv.id = "bank-mov-supplier-wrapper";
+                supDiv.style.display = "none";
+                supDiv.innerHTML = `
+                <label class="form-label">اختر المورد</label>
+                <select class="form-input form-select" id="bank-mov-supplier">
+                  <option value="">-- اختر المورد --</option>
+                  ${(DB.suppliers || []).map((s) => `<option value="${s.id}">${s.name} (مديونية: ${(s.balance || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ج)</option>`).join("")}
+                </select>
+              `;
+                typeSelect.parentNode.parentNode.insertBefore(
+                  supDiv,
+                  typeSelect.parentNode.nextSibling,
+                );
+              }
+            }, 150);
+          };
+        }
+
+        // ── PC Invoice Modal: populate inventory select ──────────────
+        const _origOpenPCInvoiceModal = window.openPCInvoiceModal;
+        window.openPCInvoiceModal = function () {
+          if (_origOpenPCInvoiceModal) _origOpenPCInvoiceModal();
+          setTimeout(() => {
+            const sel = document.getElementById("pc-inv-stock-select");
+            if (sel) {
+              sel.innerHTML =
+                '<option value="">-- اختر صنف من المخزون --</option>';
+              (DB.inventory || []).forEach((item) => {
+                const opt = document.createElement("option");
+                opt.value = item.id;
+                opt.textContent = `${item.name} | متاح: ${item.qty} ${item.unit} | شراء: ${(item.buyPrice || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ج | بيع: ${(item.sellPrice || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ج`;
+                sel.appendChild(opt);
+              });
+            }
+          }, 100);
+        };
+
+        window.onPCInvStockSelect = function () {
+          const sel = document.getElementById("pc-inv-stock-select");
+          const infoEl = document.getElementById("pc-inv-stock-info");
+          const priceEl = document.getElementById("pc-inv-stock-price");
+          if (!sel || !infoEl) return;
+          const item = (DB.inventory || []).find((i) => i.id === sel.value);
+          if (item) {
+            // ملء سعر الشراء تلقائياً (قابل للتعديل)
+            if (priceEl) priceEl.value = item.buyPrice || 0;
+            infoEl.innerHTML = `<span style="color:var(--green)">✅ ${item.name}</span> — في المخزون: <strong>${item.qty} ${item.unit}</strong> — سعر الشراء المسجل: <span style="color:var(--accent)">${(item.buyPrice || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ج</span> — سعر البيع: <span style="color:var(--green)">${(item.sellPrice || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ج</span>`;
+          } else {
+            infoEl.innerHTML = "";
+            if (priceEl) priceEl.value = "";
+          }
+        };
+
+        window.addPCInvItemFromStock = function () {
+          const sel = document.getElementById("pc-inv-stock-select");
+          const qtyEl = document.getElementById("pc-inv-stock-qty");
+          const priceEl = document.getElementById("pc-inv-stock-price");
+          if (!sel || !sel.value) {
+            showToast("اختر صنفاً من المخزون", "error");
+            return;
+          }
+          const item = (DB.inventory || []).find((i) => i.id === sel.value);
+          if (!item) return;
+          const qty = parseFloat(qtyEl?.value) || 1;
+          // استخدم السعر المُدخل (قد يختلف عن سعر المخزون)
+          const price = parseFloat(priceEl?.value) || item.buyPrice || 0;
+
+          document.getElementById("pc-inv-item-name").value = item.name;
+          document.getElementById("pc-inv-item-qty").value = qty;
+          document.getElementById("pc-inv-item-price").value = price;
+          if (typeof calcPCInvItemTotal === "function") calcPCInvItemTotal();
+          if (typeof addPCInvItem === "function") addPCInvItem();
+
+          // reset
+          sel.value = "";
+          if (qtyEl) qtyEl.value = 1;
+          if (priceEl) priceEl.value = "";
+          document.getElementById("pc-inv-stock-info").innerHTML = "";
+        };
+
+        // ── Treasury: fix station total to use fuel COST price for accuracy ─
+        const _origRenderTreasuryV5 = renderTreasury;
+        renderTreasury = function () {
+          _origRenderTreasuryV5();
+          setTimeout(() => {
+            // تأكد من إزالة capital-card لو موجود
+            const capCard = document.getElementById("capital-card");
+            if (capCard) capCard.remove();
+
+            // احسب قيمة الوقود بسعر التكلفة (costPrice) وليس سعر البيع
+            const fuelValueCost = (DB.tanks || []).reduce((s, t) => {
+              const fuel = (DB.fuels || []).find((f) => f.id === t.fuelId);
+              const costP = fuel ? fuel.costPrice || fuel.price || 0 : 0;
+              return s + t.level * costP;
+            }, 0);
+            const fuelValueSell = (DB.tanks || []).reduce((s, t) => {
+              const fuel = (DB.fuels || []).find((f) => f.id === t.fuelId);
+              return s + t.level * (fuel ? fuel.price || 0 : 0);
+            }, 0);
+            const invValue = (DB.inventory || []).reduce((s, item) => {
+              const p =
+                typeof getItemValuePrice === "function"
+                  ? getItemValuePrice(item)
+                  : item.buyPrice || 0;
+              return s + p * item.qty;
+            }, 0);
+
+            // عرض في بطاقة الخزنة
+            let stationEl = document.getElementById("v5-station-total-card");
+            if (!stationEl) {
+              stationEl = document.createElement("div");
+              stationEl.id = "v5-station-total-card";
+              stationEl.style.cssText =
+                "grid-column:1/-1;background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);color:#fff;border-radius:12px;padding:16px;display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap;margin-top:10px";
+              const statsEl = document.getElementById("treasury-stats");
+              if (statsEl)
+                statsEl.parentNode.insertBefore(stationEl, statsEl.nextSibling);
+            }
+            stationEl.innerHTML = `
+            <div>
+              <div style="font-size:13px;color:#94a3b8;margin-bottom:4px;font-weight:600">📦 إجمالي المحطة (مخزون + وقود بسعر التكلفة)</div>
+              <div style="font-family:var(--mono);font-size:28px;font-weight:900;color:#f59e0b">${(fuelValueCost + invValue).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span style="font-size:14px;color:#94a3b8">جنيه</span></div>
+            </div>
+            <div style="display:flex;gap:20px;flex-wrap:wrap">
+              <div style="text-align:center">
+                <div style="font-size:10px;color:#94a3b8">⛽ وقود (تكلفة)</div>
+                <div style="font-family:var(--mono);font-size:16px;font-weight:700;color:#fbbf24">${fuelValueCost.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ج</div>
+              </div>
+              <div style="text-align:center">
+                <div style="font-size:10px;color:#94a3b8">⛽ وقود (بيع)</div>
+                <div style="font-family:var(--mono);font-size:16px;font-weight:700;color:#86efac">${fuelValueSell.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ج</div>
+              </div>
+              <div style="text-align:center">
+                <div style="font-size:10px;color:#94a3b8">📦 مخزون (تكلفة)</div>
+                <div style="font-family:var(--mono);font-size:16px;font-weight:700;color:#7dd3fc">${invValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ج</div>
+              </div>
+            </div>
+          `;
+          }, 100);
+        };
+
+        console.log("✅ V5 PATCH LOADED");
       })();
     </script>
   </body>
