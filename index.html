@@ -31154,5 +31154,444 @@ ${bodyHtml}
         );
       })();
     </script>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         V_DATE_FILTERS: فلاتر التاريخ — القياس الصباحي + التوريدات + الشركات
+         ═══════════════════════════════════════════════════════════════ -->
+    <script>
+      (function () {
+        "use strict";
+
+        /* ══════════════════════════════════════════════════════
+         أدوات مساعدة
+         ══════════════════════════════════════════════════════ */
+        function toDate(str) {
+          return str ? new Date(str) : null;
+        }
+        function startOfDay(d) {
+          const x = new Date(d);
+          x.setHours(0, 0, 0, 0);
+          return x;
+        }
+        function endOfDay(d) {
+          const x = new Date(d);
+          x.setHours(23, 59, 59, 999);
+          return x;
+        }
+
+        /* ╔══════════════════════════════════════════════════════════╗
+         ║  1. سجل القياس الصباحي — فلتر من/إلى                    ║
+         ╚══════════════════════════════════════════════════════════╝ */
+        const _origOpenGauge = window.openMorningGaugeModal;
+        window.openMorningGaugeModal = function () {
+          _origOpenGauge && _origOpenGauge();
+
+          // أضف شريط الفلتر مرة واحدة بس
+          if (document.getElementById("gauge-filter-bar")) {
+            _refreshGaugeList();
+            return;
+          }
+
+          const modalBody = document.querySelector(
+            "#v29-gauge-modal .modal-body",
+          );
+          if (!modalBody) return;
+
+          const today = new Date().toISOString().split("T")[0];
+          const firstDay = new Date(
+            new Date().getFullYear(),
+            new Date().getMonth(),
+            1,
+          )
+            .toISOString()
+            .split("T")[0];
+
+          const bar = document.createElement("div");
+          bar.id = "gauge-filter-bar";
+          bar.style.cssText =
+            "display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:10px 12px";
+          bar.innerHTML = `
+          <span style="font-size:12px;font-weight:600;color:var(--text2)">📅 من:</span>
+          <input type="date" id="gauge-from" value="${firstDay}" style="background:var(--surface3);border:1px solid var(--border2);color:var(--text);border-radius:6px;padding:5px 8px;font-size:12px;font-family:inherit">
+          <span style="font-size:12px;font-weight:600;color:var(--text2)">إلى:</span>
+          <input type="date" id="gauge-to" value="${today}" style="background:var(--surface3);border:1px solid var(--border2);color:var(--text);border-radius:6px;padding:5px 8px;font-size:12px;font-family:inherit">
+          <button onclick="_refreshGaugeList()" style="background:var(--accent);color:#000;border:none;border-radius:6px;padding:5px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">🔍 تصفية</button>
+          <button onclick="document.getElementById('gauge-from').value='';document.getElementById('gauge-to').value='';_refreshGaugeList()" style="background:var(--surface3);color:var(--text2);border:1px solid var(--border2);border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;font-family:inherit">✕ كل السجلات</button>
+          <span id="gauge-filter-count" style="font-size:11px;color:var(--text3);margin-right:auto"></span>
+        `;
+          modalBody.insertBefore(bar, modalBody.firstChild);
+
+          // أضف event listeners للضغط على Enter
+          ["gauge-from", "gauge-to"].forEach((id) => {
+            document.getElementById(id).addEventListener("keydown", (e) => {
+              if (e.key === "Enter") _refreshGaugeList();
+            });
+          });
+
+          _refreshGaugeList();
+        };
+
+        window._refreshGaugeList = function () {
+          const listEl = document.getElementById("v29-gauge-list");
+          if (!listEl) return;
+
+          const fromVal = document.getElementById("gauge-from")?.value;
+          const toVal = document.getElementById("gauge-to")?.value;
+          const from = fromVal ? startOfDay(fromVal) : null;
+          const to = toVal ? endOfDay(toVal) : null;
+
+          let logs = [...(DB.dailyGaugeLog || [])];
+          if (from) logs = logs.filter((l) => new Date(l.date) >= from);
+          if (to) logs = logs.filter((l) => new Date(l.date) <= to);
+
+          const countEl = document.getElementById("gauge-filter-count");
+          if (countEl) countEl.textContent = `${logs.length} سجل`;
+
+          if (logs.length === 0) {
+            listEl.innerHTML =
+              '<div style="text-align:center;padding:30px;color:var(--text3)">لا توجد قياسات في هذه الفترة</div>';
+            return;
+          }
+
+          const D29 =
+            window.D29 || ((d) => new Date(d).toLocaleString("ar-EG"));
+          // نرتّب تنازلياً
+          const sorted = [...logs].sort(
+            (a, b) => new Date(b.date) - new Date(a.date),
+          );
+          // نحتاج الـ index الأصلي للحذف
+          const allLogs = DB.dailyGaugeLog || [];
+
+          let html = `<table class="readings-table"><thead><tr><th>التاريخ</th><th>القياسات</th><th>إجراء</th></tr></thead><tbody>`;
+          sorted.forEach((log) => {
+            const origIdx = allLogs.indexOf(log);
+            const details = log.entries
+              .map(
+                (e) =>
+                  `<span style="background:var(--surface2);padding:2px 6px;border-radius:4px;font-size:10px;margin-left:4px;display:inline-block;margin-bottom:4px">🛢️ ${e.tankName}: <span style="font-family:var(--mono);color:var(--accent)">${e.liters} ل</span></span>`,
+              )
+              .join("");
+            html += `<tr>
+            <td style="font-size:11px">${D29(log.date)}</td>
+            <td>${details}</td>
+            <td><button class="btn btn-danger btn-sm" onclick="deleteMorningGauge(${origIdx})">🗑</button></td>
+          </tr>`;
+          });
+          html += `</tbody></table>`;
+          listEl.innerHTML = html;
+        };
+
+        /* ╔══════════════════════════════════════════════════════════╗
+         ║  2. صفحة توريدات الوقود — فلتر من/إلى                   ║
+         ╚══════════════════════════════════════════════════════════╝ */
+        const _origRenderDeliveries =
+          window.renderFuelDeliveries ||
+          (typeof renderFuelDeliveries !== "undefined"
+            ? renderFuelDeliveries
+            : null);
+
+        function injectDeliveryFilter() {
+          if (document.getElementById("delivery-filter-bar")) return;
+
+          const tableCard = document.querySelector(
+            "#page-fuel-deliveries .card:last-child",
+          );
+          if (!tableCard) return;
+
+          const today = new Date().toISOString().split("T")[0];
+          const firstDay = new Date(
+            new Date().getFullYear(),
+            new Date().getMonth(),
+            1,
+          )
+            .toISOString()
+            .split("T")[0];
+
+          const bar = document.createElement("div");
+          bar.id = "delivery-filter-bar";
+          bar.style.cssText =
+            "display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--surface2);border-bottom:1px solid var(--border);padding:10px 14px";
+          bar.innerHTML = `
+          <span style="font-size:12px;font-weight:600;color:var(--text2)">📅 من:</span>
+          <input type="date" id="del-from" value="${firstDay}" style="background:var(--surface3);border:1px solid var(--border2);color:var(--text);border-radius:6px;padding:5px 8px;font-size:12px;font-family:inherit">
+          <span style="font-size:12px;font-weight:600;color:var(--text2)">إلى:</span>
+          <input type="date" id="del-to" value="${today}" style="background:var(--surface3);border:1px solid var(--border2);color:var(--text);border-radius:6px;padding:5px 8px;font-size:12px;font-family:inherit">
+          <button onclick="applyDeliveryFilter()" style="background:var(--accent);color:#000;border:none;border-radius:6px;padding:5px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">🔍 تصفية</button>
+          <button onclick="document.getElementById('del-from').value='';document.getElementById('del-to').value='';applyDeliveryFilter()" style="background:var(--surface3);color:var(--text2);border:1px solid var(--border2);border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;font-family:inherit">✕ كل التوريدات</button>
+          <span id="del-filter-count" style="font-size:11px;color:var(--text3)"></span>
+        `;
+
+          const cardBody = tableCard.querySelector(".card-body");
+          tableCard.insertBefore(bar, cardBody);
+
+          ["del-from", "del-to"].forEach((id) => {
+            document.getElementById(id)?.addEventListener("keydown", (e) => {
+              if (e.key === "Enter") applyDeliveryFilter();
+            });
+          });
+        }
+
+        window.applyDeliveryFilter = function () {
+          const fromVal = document.getElementById("del-from")?.value;
+          const toVal = document.getElementById("del-to")?.value;
+          const from = fromVal ? startOfDay(fromVal) : null;
+          const to = toVal ? endOfDay(toVal) : null;
+
+          let all = [...(DB.fuelDeliveries || [])];
+          if (from) all = all.filter((d) => new Date(d.date) >= from);
+          if (to) all = all.filter((d) => new Date(d.date) <= to);
+          all.reverse();
+
+          const countEl = document.getElementById("del-filter-count");
+          if (countEl) countEl.textContent = `${all.length} توريد`;
+
+          const tbody = document.getElementById("deliveries-tbody");
+          if (!tbody) return;
+
+          if (all.length === 0) {
+            tbody.innerHTML =
+              '<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:30px">لا توجد توريدات في هذه الفترة</td></tr>';
+            return;
+          }
+
+          const fmtDate =
+            window.fmtDate || ((d) => new Date(d).toLocaleDateString("ar-EG"));
+          const fmtShort = window.fmtShort || ((n) => n.toLocaleString());
+          const tankById =
+            window.tankById ||
+            ((id) => (DB.tanks || []).find((t) => t.id === id));
+          const fuelById =
+            window.fuelById ||
+            ((id) => (DB.fuels || []).find((f) => f.id === id));
+
+          let html = "";
+          all.forEach((d, i) => {
+            const tank = tankById(d.tankId);
+            const fuel = tank ? fuelById(tank.fuelId) : null;
+            html += `<tr>
+            <td style="font-family:var(--mono);color:var(--text3)">${all.length - i}</td>
+            <td style="font-size:12px">${fmtDate(d.date)}</td>
+            <td><span style="color:${fuel ? fuel.color : "var(--text)"};font-weight:600">${tank ? tank.name : "-"}</span> <span style="color:var(--text3);font-size:11px">${fuel ? fuel.name : ""}</span></td>
+            <td style="font-family:var(--mono);font-weight:700;color:var(--green)">${fmtShort(d.qty)} ل</td>
+            <td style="color:var(--text3);font-size:12px">${d.invoice || "-"}</td>
+            <td style="font-size:12px">${d.supplier || "-"}</td>
+            <td><button class="btn btn-danger btn-sm" onclick="deleteDelivery('${d.id}')">🗑</button></td>
+          </tr>`;
+          });
+          tbody.innerHTML = html;
+
+          // تحديث الملخص أيضاً بنفس الفترة
+          _updateDeliverySummary(from, to);
+        };
+
+        function _updateDeliverySummary(from, to) {
+          let deliveries = [...(DB.fuelDeliveries || [])];
+          if (from)
+            deliveries = deliveries.filter((d) => new Date(d.date) >= from);
+          if (to) deliveries = deliveries.filter((d) => new Date(d.date) <= to);
+
+          const tankById =
+            window.tankById ||
+            ((id) => (DB.tanks || []).find((t) => t.id === id));
+          const fuelById =
+            window.fuelById ||
+            ((id) => (DB.fuels || []).find((f) => f.id === id));
+          const fmtShort = window.fmtShort || ((n) => n.toLocaleString());
+
+          const byFuel = {};
+          deliveries.forEach((d) => {
+            const tank = tankById(d.tankId);
+            const fid = tank ? tank.fuelId : "unknown";
+            const fuel = fuelById(fid);
+            const name = fuel ? fuel.name : tank ? tank.name : d.tankId;
+            if (!byFuel[name])
+              byFuel[name] = { liters: 0, color: fuel ? fuel.color : "#fff" };
+            byFuel[name].liters += d.qty;
+          });
+
+          const fromEl = document.getElementById("del-from");
+          const toEl = document.getElementById("del-to");
+          let label = "الفترة المختارة:";
+          if (!from && !to) label = "كل التوريدات:";
+
+          let summaryHtml = `<div style="font-size:12px;font-weight:700;color:var(--text3);margin-bottom:10px">${label}</div>`;
+          if (Object.keys(byFuel).length === 0) {
+            summaryHtml +=
+              '<div style="color:var(--text3);font-size:12px;text-align:center;padding:20px">لا توجد توريدات في هذه الفترة</div>';
+          } else {
+            Object.entries(byFuel).forEach(([name, d]) => {
+              summaryHtml += `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--surface2);border-radius:8px;margin-bottom:8px">
+              <span style="font-weight:600;color:${d.color}">⛽ ${name}</span>
+              <span style="font-family:var(--mono);font-weight:700;font-size:15px;color:var(--green)">${fmtShort(d.liters)} ل</span>
+            </div>`;
+            });
+            const total = deliveries.reduce((s, d) => s + d.qty, 0);
+            summaryHtml += `<div style="display:flex;justify-content:space-between;padding:10px;background:var(--accent-dim);border:1px solid rgba(245,158,11,.3);border-radius:8px;margin-top:4px">
+            <span style="font-weight:700">الإجمالي الكلي</span>
+            <span style="font-family:var(--mono);font-weight:700;color:var(--accent)">${fmtShort(total)} لتر</span>
+          </div>`;
+          }
+          const sumEl = document.getElementById("delivery-monthly-summary");
+          if (sumEl) sumEl.innerHTML = summaryHtml;
+        }
+
+        // Override renderFuelDeliveries لإضافة الفلتر بعد الرندر
+        const _dfOrigRender =
+          typeof renderFuelDeliveries !== "undefined"
+            ? renderFuelDeliveries
+            : null;
+        if (typeof renderFuelDeliveries !== "undefined") {
+          renderFuelDeliveries = function () {
+            _dfOrigRender && _dfOrigRender();
+            setTimeout(() => {
+              injectDeliveryFilter();
+              // طبّق الفلتر الحالي لو موجود
+              if (document.getElementById("del-from")) applyDeliveryFilter();
+            }, 50);
+          };
+        }
+
+        // تحديث بطاقات الشركات
+        function _renderCompaniesFiltered(from, to) {
+          if (!DB.companies || !DB.companyPayments) return;
+          const grid = document.getElementById("companies-grid");
+          if (!grid) return;
+
+          // تحديث بطاقات الشركات بأرقام الفترة
+          let cardsHtml = "";
+          if (DB.companies.length === 0) {
+            cardsHtml = `<div style="background:var(--surface);border:1px dashed var(--border2);border-radius:12px;padding:40px;text-align:center;color:var(--text3)">
+            <div style="font-size:32px;margin-bottom:12px">🏢</div>
+            <div style="font-size:14px">لا توجد شركات — أضف شركة للبدء</div>
+          </div>`;
+          } else {
+            DB.companies.forEach((c) => {
+              let cTxs = DB.transactions.filter(
+                (t) => t.companyId === c.id && t.payMethod === "credit",
+              );
+              if (from) cTxs = cTxs.filter((t) => new Date(t.date) >= from);
+              if (to) cTxs = cTxs.filter((t) => new Date(t.date) <= to);
+              const totalSales = cTxs.reduce((s, t) => s + t.total, 0);
+
+              let cPayments = (DB.companyPayments || []).filter(
+                (p) => p.companyId === c.id,
+              );
+              if (from)
+                cPayments = cPayments.filter((p) => new Date(p.date) >= from);
+              if (to)
+                cPayments = cPayments.filter((p) => new Date(p.date) <= to);
+              const totalPaid = cPayments.reduce((s, p) => s + p.amount, 0);
+
+              const allPayments = (DB.companyPayments || []).filter(
+                (p) => p.companyId === c.id,
+              );
+              const lastPayment = allPayments.length
+                ? [...allPayments].sort(
+                    (a, b) => new Date(b.date) - new Date(a.date),
+                  )[0]
+                : null;
+
+              const isAdvance = c.balance < 0;
+              const absBalance = Math.abs(c.balance);
+              const usedPct =
+                !isAdvance && c.creditLimit > 0
+                  ? Math.min(100, Math.round((c.balance / c.creditLimit) * 100))
+                  : 0;
+              const balanceColor = isAdvance
+                ? "var(--green)"
+                : c.balance > c.creditLimit * 0.8
+                  ? "var(--red)"
+                  : c.balance > c.creditLimit * 0.5
+                    ? "var(--accent)"
+                    : "var(--text)";
+              const availableCredit = c.creditLimit - c.balance;
+
+              cardsHtml += `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;transition:border-color .15s" onmouseover="this.style.borderColor='var(--border2)'" onmouseout="this.style.borderColor='var(--border)'">
+              <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+                <div style="width:44px;height:44px;border-radius:10px;background:var(--accent-dim);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;flex-shrink:0">${c.name[0]}</div>
+                <div style="flex:1;min-width:0">
+                  <div style="font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.name}</div>
+                  <div style="font-size:11px;color:var(--text3)">
+                    حد: <strong style="font-family:var(--mono)">${F32(c.creditLimit)} ج</strong>
+                    <span onclick="v32UpdateCreditLimit('${c.id}')" style="cursor:pointer;color:var(--accent);font-size:13px;padding:0 4px" title="تعديل الحد الائتماني">✏️</span>
+                    ${c.phone ? " | 📞 " + c.phone : ""}
+                  </div>
+                </div>
+                <div style="text-align:center;flex-shrink:0">
+                  <div style="font-size:10px;color:var(--text3)">الاستخدام</div>
+                  <div style="font-size:13px;font-weight:700;color:${isAdvance ? "var(--green)" : balanceColor}">${usedPct}%</div>
+                </div>
+              </div>
+
+              <div style="background:var(--surface3);border-radius:4px;height:5px;margin-bottom:14px;overflow:hidden">
+                <div style="background:${balanceColor};height:100%;width:${usedPct}%;transition:width .3s;border-radius:4px"></div>
+              </div>
+
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+                <div style="background:${isAdvance ? "var(--green-dim)" : "var(--surface2)"};border:1px solid ${isAdvance ? "rgba(34,197,94,0.3)" : "transparent"};border-radius:8px;padding:10px;text-align:center">
+                  <div style="font-size:10px;color:${isAdvance ? "var(--green)" : "var(--text3)"};margin-bottom:2px">${isAdvance ? "🎁 رصيد مقدم للشركة" : "📊 مديونية علينا"}</div>
+                  <div style="font-family:var(--mono);font-size:16px;font-weight:700;color:${balanceColor}">${F32(absBalance)}</div>
+                  <div style="font-size:9px;color:var(--text3)">جنيه</div>
+                </div>
+                <div style="background:var(--surface2);border-radius:8px;padding:10px;text-align:center">
+                  <div style="font-size:10px;color:var(--text3);margin-bottom:2px">🔓 ائتمان متاح</div>
+                  <div style="font-family:var(--mono);font-size:16px;font-weight:700;color:var(--text)">${F32(availableCredit)}</div>
+                  <div style="font-size:9px;color:var(--text3)">جنيه</div>
+                </div>
+              </div>
+
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+                <div style="background:var(--surface2);border-radius:8px;padding:8px;text-align:center">
+                  <div style="font-size:10px;color:var(--text3)">📊 مبيعات${from || to ? " (الفترة)" : ""}</div>
+                  <div style="font-family:var(--mono);font-size:13px;font-weight:600;color:var(--accent)">${F32(totalSales)} ج</div>
+                </div>
+                <div style="background:var(--surface2);border-radius:8px;padding:8px;text-align:center">
+                  <div style="font-size:10px;color:var(--text3)">✅ محصّل${from || to ? " (الفترة)" : ""}</div>
+                  <div style="font-family:var(--mono);font-size:13px;font-weight:600;color:var(--green)">${F32(totalPaid)} ج</div>
+                </div>
+              </div>
+
+              ${
+                lastPayment
+                  ? `<div style="background:var(--surface3);border-radius:6px;padding:7px 10px;font-size:11px;color:var(--text2);margin-bottom:10px">
+                آخر دفعة مستلمة: <strong style="font-family:var(--mono)">${F32(lastPayment.amount)} ج</strong> — ${new Date(lastPayment.date).toLocaleDateString("ar-EG")}
+              </div>`
+                  : ""
+              }
+
+              <div style="display:flex;gap:6px;flex-wrap:wrap">
+                <button class="btn btn-success btn-sm" style="flex:1;justify-content:center" onclick="v15OpenCollect('${c.id}')">💰 تحصيل / إيداع</button>
+                <button class="btn btn-secondary btn-sm" style="flex:1;justify-content:center" onclick="printCompanyStatement('${c.id}')">📄 كشف حساب</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteCompany('${c.id}')">🗑</button>
+              </div>
+            </div>`;
+            });
+          }
+
+          grid.innerHTML = cardsHtml;
+        }
+
+        /* ══════════════════════════════════════════════════════
+         تطبيق عند تغيير الصفحة
+         ══════════════════════════════════════════════════════ */
+        const _dfOrigNavigate =
+          typeof navigate !== "undefined" ? navigate : null;
+        if (_dfOrigNavigate) {
+          navigate = function (page) {
+            _dfOrigNavigate(page);
+            if (page === "fuel-deliveries") {
+              setTimeout(() => {
+                injectDeliveryFilter();
+                applyDeliveryFilter();
+              }, 200);
+            }
+          };
+        }
+
+        console.log(
+          "✅ V_DATE_FILTERS: فلاتر التاريخ — القياس الصباحي + التوريدات + الشركات + تصفير الإحصائيات",
+        );
+      })();
+    </script>
   </body>
 </html>
